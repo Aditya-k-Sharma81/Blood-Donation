@@ -1,12 +1,18 @@
-const express = require('express');
+import express from 'express';
+import { registerDonor, loginDonor, registerAdmin, loginAdmin, registerHospital, loginHospital } from '../controllers/authController.js';
+
 const router = express.Router();
-const { donorSignup, login, getMe, logout } = require('../controllers/authController');
-const { protect } = require('../middleware/authMiddleware');
 
-// Route '/' Donor Signup & Unified Login
-router.post('/donor/signup', donorSignup);
-router.post('/login', login);
-router.get('/me', protect, getMe);
-router.post('/logout', logout);
+// Donor Routes
+router.post('/donor/signup', registerDonor);
+router.post('/donor/login', loginDonor);
 
-module.exports = router;
+// Admin Routes
+router.post('/admin/signup', registerAdmin);
+router.post('/admin/login', loginAdmin);
+
+// Hospital Routes
+router.post('/hospital/create', registerHospital);
+router.post('/hospital/login', loginHospital);
+
+export default router;

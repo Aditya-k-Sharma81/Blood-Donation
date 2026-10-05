@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema(
   {
@@ -21,27 +21,14 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['DONOR', 'HOSPITAL', 'ADMIN'],
+      enum: ['DONOR', 'ADMIN', 'HOSPITAL'],
       default: 'DONOR',
     },
-    phone: {
-      type: String,
-      default: '',
-    },
-    city: {
-      type: String,
-      default: 'City Central',
-    },
-    address: {
-      type: String,
-      default: '',
-    },
-    location: {
-      lat: { type: Number, default: 30.901 },
-      lng: { type: Number, default: 75.857 },
-    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema);
+export default User;

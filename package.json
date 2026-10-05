@@ -1,14 +1,10 @@
 {
-  "name": "blood-donation-system-mern",
+  "name": "blood-donation-mern",
   "version": "1.0.0",
-  "description": "Centralized 3-Pillar Ecosystem for Blood Donation & Emergency Donor Management System",
+  "description": "Blood Donation MERN Stack System with MVC Architecture",
   "scripts": {
-    "backend": "cd backend && npm run dev",
-    "frontend": "cd frontend && npm run dev",
-    "install-all": "cd backend && npm install && cd ../frontend && npm install",
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
+    "backend": "npm run dev --prefix backend",
+    "frontend": "npm run dev --prefix frontend",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend"
   }
 }

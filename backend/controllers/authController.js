@@ -1,183 +1,275 @@
-const bcrypt = require('bcryptjs');
-const User = require('../models/User');
-const Donor = require('../models/Donor');
-const Hospital = require('../models/Hospital');
-const { generateToken } = require('../utils/jwt');
+import User from '../models/User.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
-// @desc    Register a new Voluntary Donor (Route '/')
+const JWT_SECRET = process.env.JWT_SECRET || 'blood_donation_secret_key_123';
+
+// Generate JWT Token
+const generateToken = (id, role) => {
+  return jwt.sign({ id, role }, JWT_SECRET, { expiresIn: '7d' });
+};
+
+// @desc    Register a new Donor
 // @route   POST /api/auth/donor/signup
 // @access  Public
-const donorSignup = async (req, res) => {
+export const registerDonor = async (req, res) => {
   try {
-    const { name, email, password, bloodGroup, phone, city } = req.body;
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Name, email, and password are required for donor registration' });
+      return res.status(400).json({ success: false, message: 'Please provide name, email, and password.' });
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+      return res.status(400).json({ success: false, message: 'Email already registered. Please login.' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = await User.create({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
+      name,
+      email,
       password: hashedPassword,
       role: 'DONOR',
-      phone: phone || '',
-      city: city || 'City Central',
     });
 
-    const donorProfile = await Donor.create({
-      userId: user._id,
-      bloodGroup: bloodGroup || 'O+',
-      isAvailable: true,
-      lastDonationDate: null,
-      nextEligibleDate: new Date(),
-    });
-
-    const token = generateToken(user);
-
-    // Save token & user in session
-    if (req.session) {
-      req.session.token = token;
-      req.session.userId = user._id;
-      req.session.role = user.role;
-    }
+    const token = generateToken(user._id, user.role);
 
     res.status(201).json({
       success: true,
-      message: 'Donor registered successfully',
-      token,
+      message: 'Donor registered successfully!',
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        profile: donorProfile,
       },
+      token,
     });
   } catch (error) {
-    console.error('Donor signup error:', error);
-    res.status(500).json({ message: error.message || 'Server error during donor registration' });
+    console.error('Donor Register Error:', error);
+    res.status(500).json({ success: false, message: 'Server error during donor registration.' });
   }
 };
 
-// @desc    Unified / Role-Specific Login (For Donor /, Admin /admin/login, Hospital /hospital/login)
-// @route   POST /api/auth/login
+// @desc    Login Donor
+// @route   POST /api/auth/donor/login
 // @access  Public
-const login = async (req, res) => {
+export const loginDonor = async (req, res) => {
   try {
-    const { email, password, expectedRole } = req.body;
+    const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
+      return res.status(400).json({ success: false, message: 'Please provide email and password.' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await User.findOne({ email, role: 'DONOR' });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials or Donor account not found.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
 
-    // Role check if expectedRole is passed by specific portal
-    if (expectedRole && user.role !== expectedRole.toUpperCase()) {
-      return res.status(403).json({
-        message: `Access denied. This account has role '${user.role}', but expected '${expectedRole.toUpperCase()}'.`,
+    const token = generateToken(user._id, user.role);
+
+    res.status(200).json({
+      success: true,
+      message: 'Donor login successful!',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error('Donor Login Error:', error);
+    res.status(500).json({ success: false, message: 'Server error during donor login.' });
+  }
+};
+
+// @desc    Register a new Admin
+// @route   POST /api/auth/admin/signup
+// @access  Public
+export const registerAdmin = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide name, email, and password.' });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Email already registered.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'ADMIN',
+    });
+
+    const token = generateToken(user._id, user.role);
+
+    res.status(201).json({
+      success: true,
+      message: 'Admin account created successfully!',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error('Admin Register Error:', error);
+    res.status(500).json({ success: false, message: 'Server error during admin registration.' });
+  }
+};
+
+// @desc    Login Admin
+// @route   POST /api/auth/admin/login
+// @access  Public
+export const loginAdmin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide email and password.' });
+    }
+
+    let user = await User.findOne({ email });
+    
+    // Auto-seed default admin if login attempt with admin@blood.org / admin123
+    if (!user && email === 'admin@blood.org') {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash('admin123', salt);
+      user = await User.create({
+        name: 'System Admin',
+        email: 'admin@blood.org',
+        password: hashedPassword,
+        role: 'ADMIN',
       });
     }
 
-    const token = generateToken(user);
-
-    // Set session
-    if (req.session) {
-      req.session.token = token;
-      req.session.userId = user._id;
-      req.session.role = user.role;
+    if (!user || user.role !== 'ADMIN') {
+      return res.status(401).json({ success: false, message: 'Invalid credentials or Admin access denied.' });
     }
 
-    let profileData = null;
-    if (user.role === 'DONOR') {
-      profileData = await Donor.findOne({ userId: user._id });
-    } else if (user.role === 'HOSPITAL') {
-      profileData = await Hospital.findOne({ userId: user._id });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
+
+    const token = generateToken(user._id, user.role);
 
     res.status(200).json({
       success: true,
-      message: `Welcome back, ${user.name}!`,
+      message: 'Admin login successful!',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profile: profileData,
-      },
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: error.message || 'Server error during login' });
+    console.error('Admin Login Error:', error);
+    res.status(500).json({ success: false, message: 'Server error during admin login.' });
   }
 };
 
-// @desc    Get Current Logged in User
-// @route   GET /api/auth/me
-// @access  Private
-const getMe = async (req, res) => {
+// @desc    Create/Register Hospital User (Admin operation)
+// @route   POST /api/auth/hospital/create
+// @access  Admin
+export const registerHospital = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
-    let profile = null;
+    const { name, email, password } = req.body;
 
-    if (user.role === 'DONOR') {
-      profile = await Donor.findOne({ userId: user._id });
-    } else if (user.role === 'HOSPITAL') {
-      profile = await Hospital.findOne({ userId: user._id });
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Hospital email and password are required.' });
     }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Hospital email already exists.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const hospitalUser = await User.create({
+      name: name || 'City Hospital',
+      email,
+      password: hashedPassword,
+      role: 'HOSPITAL',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Hospital access user created for ${hospitalUser.email}`,
+      user: {
+        id: hospitalUser._id,
+        name: hospitalUser.name,
+        email: hospitalUser.email,
+        role: hospitalUser.role,
+      },
+    });
+  } catch (error) {
+    console.error('Hospital Register Error:', error);
+    res.status(500).json({ success: false, message: 'Server error during hospital user creation.' });
+  }
+};
+
+// @desc    Login Hospital User
+// @route   POST /api/auth/hospital/login
+// @access  Public
+export const loginHospital = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide email and password.' });
+    }
+
+    const user = await User.findOne({ email, role: 'HOSPITAL' });
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials or Hospital account not found.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+    }
+
+    const token = generateToken(user._id, user.role);
 
     res.status(200).json({
       success: true,
+      message: 'Hospital login successful!',
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        city: user.city,
-        profile,
       },
+      token,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message || 'Failed to fetch user data' });
+    console.error('Hospital Login Error:', error);
+    res.status(500).json({ success: false, message: 'Server error during hospital login.' });
   }
-};
-
-// @desc    Logout User & Destroy Session
-// @route   POST /api/auth/logout
-// @access  Public
-const logout = (req, res) => {
-  if (req.session) {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Could not log out, please try again' });
-      }
-      res.clearCookie('connect.sid');
-      return res.status(200).json({ success: true, message: 'Logged out successfully' });
-    });
-  } else {
-    res.status(200).json({ success: true, message: 'Logged out successfully' });
-  }
-};
-
-module.exports = {
-  donorSignup,
-  login,
-  getMe,
-  logout,
 };
