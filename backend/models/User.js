@@ -1,34 +1,13 @@
-import mongoose from 'mongoose';
+import Donor from './Donor.js';
+import Admin from './Admin.js';
+import HospitalUser from './HospitalUser.js';
 
-const userSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, 'Name is required'],
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: [true, 'Email is required'],
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-    password: {
-      type: String,
-      required: [true, 'Password is required'],
-      minlength: 6,
-    },
-    role: {
-      type: String,
-      enum: ['DONOR', 'ADMIN', 'HOSPITAL'],
-      default: 'DONOR',
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+/**
+ * Architecture:
+ * - Donor: 'donors' collection (Donor.js)
+ * - Admin: 'admins' collection (Admin.js) - stores admin credentials AND hospital details array
+ * - Hospital User: 'hospital_users' collection (HospitalUser.js) - login accounts permitted by Admin
+ */
 
-const User = mongoose.model('User', userSchema);
-export default User;
+export { Donor, Admin, HospitalUser, HospitalUser as Hospital };
+export default { Donor, Admin, HospitalUser };

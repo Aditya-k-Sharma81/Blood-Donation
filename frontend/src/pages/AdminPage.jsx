@@ -1,7 +1,9 @@
 import React from 'react';
-import { ShieldCheck, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, LogOut, User } from 'lucide-react';
 
 export default function AdminPage({ user, onLogout }) {
+  const navigate = useNavigate();
   return (
     <div className="flex flex-col items-center justify-center text-center p-8 md:p-12 bg-white border border-slate-200 rounded-3xl shadow-xl max-w-xl w-full">
       <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-full text-indigo-600 mb-6 shadow-sm">
@@ -22,13 +24,23 @@ export default function AdminPage({ user, onLogout }) {
         System Admin authenticated via MongoDB MVC Backend. Use <strong>"Hospital Sign Up"</strong> in the top Admin Navbar to register new hospital accounts.
       </p>
 
-      <button
-        onClick={onLogout}
-        className="flex items-center gap-2 px-6 py-2.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-300 rounded-xl font-medium transition-all shadow-sm cursor-pointer"
-      >
-        <LogOut size={16} />
-        <span>Logout & Back to Portal</span>
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate('/admin/profile')}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-all shadow-md cursor-pointer text-xs md:text-sm"
+        >
+          <User size={16} />
+          <span>Edit Profile</span>
+        </button>
+
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 rounded-xl font-medium transition-all shadow-xs cursor-pointer text-xs md:text-sm"
+        >
+          <LogOut size={16} />
+          <span>Logout</span>
+        </button>
+      </div>
     </div>
   );
 }

@@ -140,17 +140,53 @@
 ## 🗄️ 5. STREAMLINED DATABASE SCHEMAS
 
 ```javascript
-// 1. User Schema (Single Auth for all 3 roles)
-const UserSchema = new Schema({
+// 1. Dedicated User Models & Collections (Separate collections for complete isolation)
+// Donors Collection ('donors')
+const DonorSchema = new Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['DONOR', 'HOSPITAL', 'ADMIN'], default: 'DONOR' },
+  role: { type: String, default: 'DONOR' },
+  bloodGroup: { type: String, enum: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', ''] },
   phone: String,
   city: String,
   address: String,
-  location: { lat: Number, lng: Number }
-}, { timestamps: true });
+  lastDonationDate: Date,
+  isAvailable: { type: Boolean, default: true },
+  totalDonations: { type: Number, default: 0 }
+}, { timestamps: true, collection: 'donors' });
+
+// Admins Collection ('admins') - Stores Admin accounts AND Hospital details
+const AdminSchema = new Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, default: 'ADMIN' },
+  phone: String,
+  // Hospital details saved directly inside Admin schema
+  hospitals: [{
+    hospitalName: { type: String, required: true },
+    licenseNumber: String,
+    phone: String,
+    city: String,
+    address: String,
+    loginEmail: { type: String, required: true },
+    hospitalUserId: { type: Schema.Types.ObjectId, ref: 'HospitalUser' },
+    status: { type: String, enum: ['ACTIVE', 'INACTIVE', 'PENDING'], default: 'ACTIVE' },
+    createdAt: { type: Date, default: Date.now }
+  }]
+}, { timestamps: true, collection: 'admins' });
+
+// Hospital Users Collection ('hospital_users') - Dedicated Login Permission Schema
+const HospitalUserSchema = new Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, default: 'HOSPITAL' },
+  isPermitted: { type: Boolean, default: true }, // Permission granted by Admin
+  permittedBy: { type: Schema.Types.ObjectId, ref: 'Admin' },
+  hospitalName: String
+}, { timestamps: true, collection: 'hospital_users' });
 
 // 2. Donor Profile Schema with Geo-Coordinates & 90-Day Trigger
 const DonorSchema = new Schema({

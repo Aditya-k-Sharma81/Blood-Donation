@@ -9,6 +9,7 @@ import DonorPage from './pages/DonorPage';
 import AdminPage from './pages/AdminPage';
 import HospitalPage from './pages/HospitalPage';
 import HospitalSignUpPage from './pages/HospitalSignUpPage';
+import AdminProfilePage from './pages/AdminProfilePage';
 
 export default function App() {
   const [loggedInUser, setLoggedInUser] = useState(() => {
@@ -81,7 +82,7 @@ export default function App() {
               path="/admin/login"
               element={
                 loggedInUser && loggedInUser.role === 'ADMIN' ? (
-                  <Navigate to="/admin" replace />
+                  <Navigate to={new URLSearchParams(window.location.search).get('redirect') || '/admin'} replace />
                 ) : (
                   <AdminLogin onLoginSuccess={handleLoginSuccess} />
                 )
@@ -105,9 +106,24 @@ export default function App() {
               path="/admin/hospital-signup"
               element={
                 loggedInUser && loggedInUser.role === 'ADMIN' ? (
-                  <HospitalSignUpPage />
+                  <HospitalSignUpPage user={loggedInUser} />
                 ) : (
                   <Navigate to="/admin/login" replace />
+                )
+              }
+            />
+
+            {/* /admin/profile -> Admin Profile Setup Form (Tasks 1, 2, 3) */}
+            <Route
+              path="/admin/profile"
+              element={
+                loggedInUser && loggedInUser.role === 'ADMIN' ? (
+                  <AdminProfilePage
+                    user={loggedInUser}
+                    onUserUpdate={handleLoginSuccess}
+                  />
+                ) : (
+                  <Navigate to="/admin/login?redirect=/admin/profile" replace />
                 )
               }
             />

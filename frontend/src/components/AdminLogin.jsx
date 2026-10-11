@@ -45,8 +45,12 @@ export default function AdminLogin({ onLoginSuccess }) {
         iconColor: '#4f46e5',
       });
 
-      onLoginSuccess(data.user);
-      navigate('/admin');
+      onLoginSuccess({
+        ...data.user,
+        token: data.token || data.user?.token,
+      });
+      const redirectTarget = new URLSearchParams(window.location.search).get('redirect') || '/admin';
+      navigate(redirectTarget);
     } catch (err) {
       setLoading(false);
 
