@@ -235,7 +235,7 @@ const verifyAdminToken = async (req) => {
       if (admin && admin.role === 'ADMIN') {
         return { adminId: admin._id };
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (adminEmail) {
@@ -244,7 +244,7 @@ const verifyAdminToken = async (req) => {
       if (admin && admin.role === 'ADMIN') {
         return { adminId: admin._id };
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   return { error: 'Access Denied: Please login as Admin first to access profile.', status: 401 };
@@ -541,7 +541,7 @@ export const registerHospital = async (req, res) => {
     if (adminId) {
       try {
         admin = await Admin.findById(adminId);
-      } catch (e) {}
+      } catch (e) { }
     }
     if (!admin) {
       admin = await Admin.findOne();
@@ -626,13 +626,41 @@ export const loginHospital = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide email and password.' });
     }
 
-    // 1. Find user in separate HospitalUser login schema
-    const hospitalUser = await HospitalUser.findOne({ email });
+    const cleanEmail = email.toLowerCase().trim();
+
+    // 1. First, search in HospitalUser collection
+    let hospitalUser = await HospitalUser.findOne({ email: cleanEmail });
+
+    // 2. If not found in HospitalUser, check Admin collection (so Admin can log into Hospital portal)
     if (!hospitalUser) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials or Hospital account not found.' });
+      const admin = await Admin.findOne({ email: cleanEmail });
+      if (admin) {
+        const isMatch = await bcrypt.compare(password.trim(), admin.password);
+        if (isMatch) {
+          const token = generateToken(admin._id, 'HOSPITAL');
+          return res.status(200).json({
+            success: true,
+            message: 'Hospital login successful (Admin access)!',
+            user: {
+              id: admin._id,
+              name: admin.hospitalName || admin.name,
+              email: admin.email,
+              role: 'HOSPITAL',
+              hospitalName: admin.hospitalName || 'City Central Hospital',
+              isPermitted: true,
+              token,
+            },
+            token,
+          });
+        }
+      }
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials or Hospital account not found.',
+      });
     }
 
-    // 2. Check if login permission is active/granted by Admin
+    // 3. Check if login permission is active/granted by Admin
     if (!hospitalUser.isPermitted) {
       return res.status(403).json({
         success: false,
@@ -640,8 +668,8 @@ export const loginHospital = async (req, res) => {
       });
     }
 
-    // 3. Verify password
-    const isMatch = await bcrypt.compare(password, hospitalUser.password);
+    // 4. Verify password for HospitalUser
+    const isMatch = await bcrypt.compare(password.trim(), hospitalUser.password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
@@ -657,11 +685,119 @@ export const loginHospital = async (req, res) => {
         email: hospitalUser.email,
         role: hospitalUser.role,
         isPermitted: hospitalUser.isPermitted,
+        hospitalName: hospitalUser.hospitalName,
+        token,
       },
       token,
     });
   } catch (error) {
     console.error('Hospital Login Error:', error);
     res.status(500).json({ success: false, message: 'Server error during hospital login.' });
+  }
+};
+
+// =========================================================================
+// STAFF MANAGEMENT CONTROLLERS
+// =========================================================================
+
+// @desc    Get all hospital staff accounts
+// @route   GET /api/admin/staff, GET /api/staff
+// @access  Admin
+export const getAllStaff = async (req, res) => {
+  try {
+    const staff = await HospitalUser.find().sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      count: staff.length,
+      staff: staff.map((s) => ({
+        id: s._id,
+        _id: s._id,
+        name: s.name,
+        email: s.email,
+        role: s.role,
+        isPermitted: s.isPermitted,
+        hospitalName: s.hospitalName,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      })),
+    });
+  } catch (error) {
+    console.error('Get All Staff Error:', error);
+    res.status(500).json({ success: false, message: 'Server error retrieving staff users.' });
+  }
+};
+
+// @desc    Toggle staff login permission (Grant / Revoke)
+// @route   PATCH /api/admin/staff/:id/toggle-permission, PUT /api/staff/:id/toggle-permission
+// @access  Admin
+export const toggleStaffPermission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const staff = await HospitalUser.findById(id);
+
+    if (!staff) {
+      return res.status(404).json({ success: false, message: 'Staff user not found.' });
+    }
+
+    // Toggle permission boolean
+    staff.isPermitted = !staff.isPermitted;
+    await staff.save();
+
+    // Also synchronize status in Admin.hospitals array if tracked there
+    try {
+      await Admin.updateMany(
+        { 'hospitals.loginEmail': staff.email },
+        { $set: { 'hospitals.$.status': staff.isPermitted ? 'ACTIVE' : 'INACTIVE' } }
+      );
+    } catch (e) {
+      console.warn('Admin hospital sync error on toggle:', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Login permission ${staff.isPermitted ? 'granted' : 'revoked'} for ${staff.email}.`,
+      staff: {
+        id: staff._id,
+        _id: staff._id,
+        name: staff.name,
+        email: staff.email,
+        role: staff.role,
+        isPermitted: staff.isPermitted,
+        hospitalName: staff.hospitalName,
+        updatedAt: staff.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error('Toggle Staff Permission Error:', error);
+    res.status(500).json({ success: false, message: 'Server error updating staff permission.' });
+  }
+};
+
+// @desc    Delete staff account
+// @route   DELETE /api/admin/staff/:id, DELETE /api/staff/:id
+// @access  Admin
+export const deleteStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const staff = await HospitalUser.findByIdAndDelete(id);
+    if (!staff) {
+      return res.status(404).json({ success: false, message: 'Staff user not found.' });
+    }
+
+    // Remove from Admin hospitals array if tracked
+    try {
+      await Admin.updateMany(
+        { 'hospitals.loginEmail': staff.email },
+        { $pull: { hospitals: { loginEmail: staff.email } } }
+      );
+    } catch (e) {}
+
+    res.status(200).json({
+      success: true,
+      message: 'Staff account removed successfully.',
+    });
+  } catch (error) {
+    console.error('Delete Staff Error:', error);
+    res.status(500).json({ success: false, message: 'Server error removing staff user.' });
   }
 };

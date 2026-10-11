@@ -10,6 +10,7 @@ import AdminPage from './pages/AdminPage';
 import HospitalPage from './pages/HospitalPage';
 import HospitalSignUpPage from './pages/HospitalSignUpPage';
 import AdminProfilePage from './pages/AdminProfilePage';
+import StaffManagementPage from './pages/StaffManagementPage';
 
 export default function App() {
   const [loggedInUser, setLoggedInUser] = useState(() => {
@@ -124,6 +125,28 @@ export default function App() {
                   />
                 ) : (
                   <Navigate to="/admin/login?redirect=/admin/profile" replace />
+                )
+              }
+            />
+
+            {/* /staff and /admin/staff -> Staff Directory & Permission Control */}
+            <Route
+              path="/staff"
+              element={
+                loggedInUser && loggedInUser.role === 'ADMIN' ? (
+                  <StaffManagementPage user={loggedInUser} />
+                ) : (
+                  <Navigate to="/admin/login?redirect=/staff" replace />
+                )
+              }
+            />
+            <Route
+              path="/admin/staff"
+              element={
+                loggedInUser && loggedInUser.role === 'ADMIN' ? (
+                  <StaffManagementPage user={loggedInUser} />
+                ) : (
+                  <Navigate to="/admin/login?redirect=/admin/staff" replace />
                 )
               }
             />

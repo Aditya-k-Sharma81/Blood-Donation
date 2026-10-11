@@ -7,8 +7,8 @@ import HospitalNavbar from './navbars/HospitalNavbar';
 export default function Navbar({ loggedInUser, handleLogout }) {
   const location = useLocation();
 
-  // Route /admin or /admin/login -> AdminNavbar ONLY
-  if (location.pathname.startsWith('/admin')) {
+  // Route /admin or /admin/login or /staff -> AdminNavbar ONLY
+  if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/staff')) {
     return <AdminNavbar user={loggedInUser} onLogout={handleLogout} />;
   }
 

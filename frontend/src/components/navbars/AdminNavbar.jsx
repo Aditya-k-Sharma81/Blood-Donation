@@ -1,12 +1,13 @@
 import React from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ShieldCheck, Building2, Plus, LogOut, ArrowLeft, User, ChevronDown } from 'lucide-react';
+import { ShieldCheck, Building2, Plus, LogOut, ArrowLeft, User, ChevronDown, Users, UserPlus } from 'lucide-react';
 
 export default function AdminNavbar({ user, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isSignUpPage = location.pathname === '/admin/hospital-signup';
   const isProfilePage = location.pathname === '/admin/profile';
+  const isStaffPage = location.pathname === '/staff' || location.pathname === '/admin/staff';
   const isProfileSet = Boolean(
     user?.isProfileSet ||
     (user?.phone?.trim() && user?.city?.trim() && user?.address?.trim())
@@ -15,36 +16,45 @@ export default function AdminNavbar({ user, onLogout }) {
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-3.5 bg-white border-b border-slate-200 shadow-xs">
       <Link to="/admin" className="flex items-center gap-2.5 font-bold text-lg text-slate-800 hover:text-indigo-600 transition-colors">
-        <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+        <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shadow-xs">
           <ShieldCheck className="w-5 h-5" />
         </div>
         <span className="tracking-tight">Admin Portal</span>
       </Link>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         {user && user.role === 'ADMIN' && (
           <>
-            {isSignUpPage || isProfilePage ? (
-              <button
-                onClick={() => navigate('/admin')}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
-              >
-                <ArrowLeft size={14} />
-                <span>Back to Dashboard</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => navigate('/admin/hospital-signup')}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all cursor-pointer shadow-xs"
-              >
-                <Building2 size={14} />
-                <Plus size={14} />
-                <span>Hospital Sign Up</span>
-              </button>
-            )}
+            {/* Staff Directory Feature (/staff) */}
+            <button
+              onClick={() => navigate('/staff')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                isStaffPage
+                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs'
+                  : 'text-slate-700 hover:text-indigo-600 bg-slate-100 hover:bg-slate-200'
+              }`}
+              title="Manage hospital staff & permissions"
+            >
+              <Users size={14} className={isStaffPage ? 'text-indigo-600' : 'text-slate-500'} />
+              <span>Staff</span>
+            </button>
+
+            {/* Add Staff Button (Hospital Staff Sign Up) */}
+            <button
+              onClick={() => navigate('/admin/hospital-signup')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                isSignUpPage
+                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs'
+                  : 'text-slate-700 hover:text-indigo-600 bg-slate-100 hover:bg-slate-200'
+              }`}
+              title="Register new hospital staff account"
+            >
+              <UserPlus size={14} className={isSignUpPage ? 'text-indigo-600' : 'text-slate-500'} />
+              <span>Add Staff</span>
+            </button>
 
             {/* Profile Picture with Hover Dropdown (Task 1) */}
-            <div className="relative group py-1.5">
+            <div className="relative group">
               <button
                 type="button"
                 className="flex items-center gap-2 p-1 rounded-full hover:bg-slate-100 transition-all cursor-pointer focus:outline-none"
