@@ -170,18 +170,18 @@ export default function HospitalSignUpPage({ user }) {
   return (
     <div className="w-full max-w-xl my-4">
       <div className="bg-white border border-slate-200/80 rounded-3xl shadow-xl shadow-slate-200/40 overflow-hidden transition-all">
-        {/* Sleek Healthcare Gradient Header Banner */}
-        <div className="h-20 bg-gradient-to-r from-indigo-600 via-indigo-700 to-sky-600 px-6 py-4 flex justify-between items-center text-white shadow-inner">
+        {/* Refined Modern Card Header (Blue color removed, matching admin design system) */}
+        <div className="px-6 py-4 bg-slate-50/80 border-b border-slate-200/70 flex items-center justify-between">
           <button
             onClick={() => navigate('/admin')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white/15 hover:bg-white/25 border border-white/20 backdrop-blur-md rounded-xl transition-all cursor-pointer text-white shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-indigo-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs"
           >
             <ArrowLeft size={14} />
             <span>Dashboard</span>
           </button>
 
-          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-white/15 backdrop-blur-md text-white border border-white/25 shadow-xs">
-            <ShieldCheck size={13} className="text-emerald-300" />
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+            <ShieldCheck size={13} className="text-emerald-600" />
             <span>Admin Authorization</span>
           </span>
         </div>
@@ -190,7 +190,7 @@ export default function HospitalSignUpPage({ user }) {
         <div className="p-6 sm:p-8 space-y-6">
           {/* Title Header with Icon */}
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-50 to-sky-50 border border-indigo-100/90 text-indigo-600 flex items-center justify-center shadow-xs shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shadow-xs shrink-0">
               <Building2 size={24} />
             </div>
             <div>
@@ -205,13 +205,13 @@ export default function HospitalSignUpPage({ user }) {
 
           {/* Linked Hospital Info Chip (if configured) */}
           {formData.name && (
-            <div className="p-3 bg-gradient-to-r from-indigo-50/80 via-sky-50/50 to-indigo-50/70 border border-indigo-100/90 rounded-2xl flex items-center justify-between text-xs transition-all shadow-xs">
-              <div className="flex items-center gap-2.5 text-indigo-950 font-semibold truncate">
+            <div className="p-3 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex items-center justify-between text-xs transition-all shadow-xs">
+              <div className="flex items-center gap-2.5 text-slate-900 font-semibold truncate">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-xs"></span>
                 <span className="truncate">Institution: {formData.name}</span>
               </div>
               {adminDetails?.licenseNumber && (
-                <span className="shrink-0 text-[10px] font-bold text-indigo-700 bg-white px-2.5 py-0.5 rounded-lg border border-indigo-200/80 font-mono shadow-xs">
+                <span className="shrink-0 text-[10px] font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 font-mono shadow-xs">
                   {adminDetails.licenseNumber}
                 </span>
               )}
