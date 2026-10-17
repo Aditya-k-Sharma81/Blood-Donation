@@ -11,6 +11,10 @@ import HospitalPage from './pages/HospitalPage';
 import HospitalSignUpPage from './pages/HospitalSignUpPage';
 import AdminProfilePage from './pages/AdminProfilePage';
 import StaffManagementPage from './pages/StaffManagementPage';
+import DonorProfilePage from './pages/DonorProfilePage';
+import AppointmentPage from './pages/AppointmentPage';
+import MyBookingsPage from './pages/MyBookingsPage';
+import useDonorAutoLocation from './hooks/useDonorAutoLocation';
 
 export default function App() {
   const [loggedInUser, setLoggedInUser] = useState(() => {
@@ -26,6 +30,9 @@ export default function App() {
     setLoggedInUser(user);
     localStorage.setItem('rakt_user', JSON.stringify(user));
   };
+
+  // Background Auto-sync GPS location every 5 minutes for logged-in donors
+  const autoLocation = useDonorAutoLocation(loggedInUser, handleLoginSuccess);
 
   const handleLogout = () => {
     Swal.fire({
@@ -62,7 +69,7 @@ export default function App() {
   return (
     <Router>
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
-        <Navbar loggedInUser={loggedInUser} handleLogout={handleLogout} />
+        <Navbar loggedInUser={loggedInUser} handleLogout={handleLogout} autoLocation={autoLocation} />
 
         <main className="flex-1 flex justify-center items-center p-6 md:p-10">
           <Routes>
@@ -71,9 +78,81 @@ export default function App() {
               path="/"
               element={
                 loggedInUser && loggedInUser.role === 'DONOR' ? (
-                  <DonorPage user={loggedInUser} onLogout={handleLogout} />
+                  <DonorPage user={loggedInUser} onLogout={handleLogout} autoLocation={autoLocation} />
                 ) : (
                   <DonorAuth onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            />
+
+            {/* /profile and /donor/profile -> Voluntary Donor Profile Setup */}
+            <Route
+              path="/profile"
+              element={
+                loggedInUser && loggedInUser.role === 'DONOR' ? (
+                  <DonorProfilePage
+                    user={loggedInUser}
+                    onUserUpdate={handleLoginSuccess}
+                  />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+            <Route
+              path="/donor/profile"
+              element={
+                loggedInUser && loggedInUser.role === 'DONOR' ? (
+                  <DonorProfilePage
+                    user={loggedInUser}
+                    onUserUpdate={handleLoginSuccess}
+                  />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+
+            {/* /appointment and /appointments -> Blood Donation Appointment Booking */}
+            <Route
+              path="/appointment"
+              element={
+                loggedInUser && loggedInUser.role === 'DONOR' ? (
+                  <AppointmentPage user={loggedInUser} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+            <Route
+              path="/appointments"
+              element={
+                loggedInUser && loggedInUser.role === 'DONOR' ? (
+                  <AppointmentPage user={loggedInUser} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+
+            {/* /my-bookings and /bookings -> Donor's Dedicated Appointments & Booking Details Page */}
+            <Route
+              path="/my-bookings"
+              element={
+                loggedInUser && loggedInUser.role === 'DONOR' ? (
+                  <MyBookingsPage user={loggedInUser} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              }
+            />
+            <Route
+              path="/bookings"
+              element={
+                loggedInUser && loggedInUser.role === 'DONOR' ? (
+                  <MyBookingsPage user={loggedInUser} />
+                ) : (
+                  <Navigate to="/" replace />
                 )
               }
             />

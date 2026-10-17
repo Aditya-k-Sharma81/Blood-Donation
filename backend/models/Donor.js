@@ -27,21 +27,74 @@ const donorSchema = new mongoose.Schema(
       type: String,
       enum: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', ''],
       default: '',
+      trim: true,
     },
     phone: {
       type: String,
       default: '',
+      trim: true,
+    },
+    profilePic: {
+      type: String,
+      default: '',
+    },
+    lastLocation: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    permanentLocation: {
+      type: String,
+      default: '',
+      trim: true,
     },
     city: {
       type: String,
       default: '',
+      trim: true,
     },
     address: {
       type: String,
       default: '',
+      trim: true,
+    },
+    latitude: {
+      type: Number,
+      default: null,
+    },
+    longitude: {
+      type: Number,
+      default: null,
+    },
+    lastLocationUpdate: {
+      type: Date,
+      default: null,
+    },
+    gender: {
+      type: String,
+      enum: ['Male', 'Female', 'Other', ''],
+      default: '',
+    },
+    dateOfBirth: {
+      type: Date,
+      default: null,
+    },
+    age: {
+      type: Number,
+      default: null,
+    },
+    weight: {
+      type: Number,
+      default: null,
+    },
+    emergencyContact: {
+      type: String,
+      default: '',
+      trim: true,
     },
     lastDonationDate: {
       type: Date,
+      default: null,
     },
     isAvailable: {
       type: Boolean,
@@ -50,6 +103,10 @@ const donorSchema = new mongoose.Schema(
     totalDonations: {
       type: Number,
       default: 0,
+    },
+    isProfileSet: {
+      type: Boolean,
+      default: false,
     },
   },
   {

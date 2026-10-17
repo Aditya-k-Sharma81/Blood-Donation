@@ -2,6 +2,10 @@ import express from 'express';
 import {
   registerDonor,
   loginDonor,
+  getDonorProfile,
+  updateDonorProfile,
+  updateDonorLocation,
+  uploadDonorProfilePic,
   registerAdmin,
   loginAdmin,
   getAdminProfile,
@@ -19,6 +23,12 @@ const router = express.Router();
 // Donor Routes
 router.post('/donor/signup', registerDonor);
 router.post('/donor/login', loginDonor);
+router.get('/donor/profile', getDonorProfile);
+router.put('/donor/profile', updateDonorProfile);
+router.patch('/donor/location', updateDonorLocation);
+router.put('/donor/location', updateDonorLocation);
+router.post('/donor/location', updateDonorLocation);
+router.post('/donor/upload-profile-pic', uploadDonorProfilePic);
 
 // Admin Routes
 router.post('/admin/signup', registerAdmin);

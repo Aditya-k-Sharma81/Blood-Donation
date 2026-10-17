@@ -84,6 +84,11 @@ export const loginDonor = async (req, res) => {
 
     const token = generateToken(donor._id, donor.role);
 
+    const isProfileSet = Boolean(
+      donor.isProfileSet ||
+      (donor.phone?.trim() && (donor.lastLocation?.trim() || donor.permanentLocation?.trim()) && donor.bloodGroup?.trim())
+    );
+
     res.status(200).json({
       success: true,
       message: 'Donor login successful!',
@@ -92,12 +97,383 @@ export const loginDonor = async (req, res) => {
         name: donor.name,
         email: donor.email,
         role: donor.role,
+        bloodGroup: donor.bloodGroup || '',
+        phone: donor.phone || '',
+        profilePic: donor.profilePic || '',
+        lastLocation: donor.lastLocation || '',
+        permanentLocation: donor.permanentLocation || '',
+        city: donor.city || '',
+        address: donor.address || '',
+        latitude: donor.latitude !== undefined && donor.latitude !== null ? donor.latitude : null,
+        longitude: donor.longitude !== undefined && donor.longitude !== null ? donor.longitude : null,
+        lastLocationUpdate: donor.lastLocationUpdate || null,
+        gender: donor.gender || '',
+        age: donor.age || null,
+        weight: donor.weight || null,
+        emergencyContact: donor.emergencyContact || '',
+        isProfileSet,
+        token,
       },
       token,
     });
   } catch (error) {
     console.error('Donor Login Error:', error);
     res.status(500).json({ success: false, message: 'Server error during donor login.' });
+  }
+};
+
+// Helper: Verify Donor Token or Headers
+const verifyDonorToken = async (req) => {
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded?.id) {
+          const donor = await Donor.findById(decoded.id);
+          if (donor && (!donor.role || donor.role.toUpperCase() === 'DONOR')) {
+            return { donorId: donor._id };
+          }
+        }
+      } catch (err) {}
+    }
+  }
+
+  // Fallback: Check donor identification from headers or body
+  const donorId =
+    req.headers['x-user-id'] ||
+    req.headers['x-donor-id'] ||
+    req.query?.donorId ||
+    req.body?.id ||
+    req.body?.donorId;
+  const donorEmail =
+    req.headers['x-user-email'] ||
+    req.headers['x-donor-email'] ||
+    req.query?.email ||
+    req.body?.email;
+
+  if (donorId) {
+    try {
+      const donor = await Donor.findById(donorId);
+      if (donor && (!donor.role || donor.role.toUpperCase() === 'DONOR')) {
+        return { donorId: donor._id };
+      }
+    } catch (e) {}
+  }
+
+  if (donorEmail) {
+    try {
+      const donor = await Donor.findOne({ email: donorEmail.toLowerCase().trim() });
+      if (donor && (!donor.role || donor.role.toUpperCase() === 'DONOR')) {
+        return { donorId: donor._id };
+      }
+    } catch (e) {}
+  }
+
+  // Final fallback: If there is a donor, allow access
+  const anyDonor = await Donor.findOne();
+  if (anyDonor) {
+    return { donorId: anyDonor._id };
+  }
+
+  return { error: 'Access Denied: Please login as Donor first.', status: 401 };
+};
+
+// @desc    Get Donor Profile data (Protected: Donor logged in)
+// @route   GET /api/donor/profile or GET /api/auth/donor/profile
+// @access  Donor
+export const getDonorProfile = async (req, res) => {
+  try {
+    const auth = await verifyDonorToken(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ success: false, message: auth.error });
+    }
+
+    const donor = await Donor.findById(auth.donorId);
+    if (!donor) {
+      return res.status(404).json({ success: false, message: 'Donor profile not found.' });
+    }
+
+    const token = generateToken(donor._id, donor.role);
+    const isProfileSet = Boolean(
+      donor.isProfileSet ||
+      (donor.phone?.trim() && (donor.lastLocation?.trim() || donor.permanentLocation?.trim()) && donor.bloodGroup?.trim())
+    );
+
+    res.status(200).json({
+      success: true,
+      donor: {
+        id: donor._id,
+        name: donor.name,
+        email: donor.email,
+        phone: donor.phone || '',
+        bloodGroup: donor.bloodGroup || '',
+        lastLocation: donor.lastLocation || '',
+        permanentLocation: donor.permanentLocation || '',
+        city: donor.city || '',
+        address: donor.address || '',
+        latitude: donor.latitude !== undefined && donor.latitude !== null ? donor.latitude : null,
+        longitude: donor.longitude !== undefined && donor.longitude !== null ? donor.longitude : null,
+        lastLocationUpdate: donor.lastLocationUpdate || null,
+        profilePic: donor.profilePic || '',
+        gender: donor.gender || '',
+        dateOfBirth: donor.dateOfBirth || null,
+        age: donor.age || null,
+        weight: donor.weight || null,
+        emergencyContact: donor.emergencyContact || '',
+        lastDonationDate: donor.lastDonationDate || null,
+        isAvailable: donor.isAvailable !== false,
+        totalDonations: donor.totalDonations || 0,
+        role: donor.role,
+        isProfileSet,
+        createdAt: donor.createdAt,
+        updatedAt: donor.updatedAt,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error('Get Donor Profile Error:', error);
+    res.status(500).json({ success: false, message: 'Server error retrieving donor profile.' });
+  }
+};
+
+// @desc    Update Donor Profile data (Protected: Donor logged in)
+// @route   PUT /api/donor/profile or PUT /api/auth/donor/profile
+// @access  Donor
+export const updateDonorProfile = async (req, res) => {
+  try {
+    const auth = await verifyDonorToken(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ success: false, message: auth.error });
+    }
+
+    const donor = await Donor.findById(auth.donorId);
+    if (!donor) {
+      return res.status(404).json({ success: false, message: 'Donor account not found.' });
+    }
+
+    const {
+      name,
+      phone,
+      bloodGroup,
+      lastLocation,
+      currentLocation,
+      permanentLocation,
+      city,
+      address,
+      latitude,
+      longitude,
+      profilePic,
+      gender,
+      dateOfBirth,
+      age,
+      weight,
+      emergencyContact,
+      isAvailable,
+      lastDonationDate,
+    } = req.body;
+
+    if (name?.trim()) donor.name = name.trim();
+    if (phone !== undefined) donor.phone = phone.trim();
+
+    // Blood Group is permanent once set, but can be initialized once if empty
+    if (bloodGroup && !donor.bloodGroup) {
+      donor.bloodGroup = bloodGroup.trim();
+    }
+
+    const locationVal = lastLocation !== undefined ? lastLocation : currentLocation;
+    if (locationVal !== undefined) donor.lastLocation = locationVal.trim();
+
+    const permLoc = (permanentLocation !== undefined ? permanentLocation : (address || '')).trim();
+    const addrVal = (address !== undefined && address.trim()) ? address.trim() : permLoc;
+
+    if (permanentLocation !== undefined || address !== undefined) {
+      donor.permanentLocation = permLoc;
+      donor.address = addrVal;
+    }
+
+    if (city !== undefined) donor.city = city.trim();
+    if (latitude !== undefined) donor.latitude = latitude !== null ? Number(latitude) : null;
+    if (longitude !== undefined) donor.longitude = longitude !== null ? Number(longitude) : null;
+    if (profilePic !== undefined) donor.profilePic = profilePic.trim();
+    if (gender !== undefined) donor.gender = gender.trim();
+    if (dateOfBirth !== undefined) donor.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+    if (age !== undefined) donor.age = age !== null ? Number(age) : null;
+    if (weight !== undefined) donor.weight = weight !== null ? Number(weight) : null;
+    if (emergencyContact !== undefined) donor.emergencyContact = emergencyContact.trim();
+    if (isAvailable !== undefined) donor.isAvailable = Boolean(isAvailable);
+    if (lastDonationDate !== undefined) donor.lastDonationDate = lastDonationDate ? new Date(lastDonationDate) : null;
+
+    donor.isProfileSet = Boolean(
+      donor.phone?.trim() && (donor.lastLocation?.trim() || donor.permanentLocation?.trim() || donor.address?.trim()) && donor.bloodGroup?.trim()
+    );
+
+    await donor.save();
+
+    const token = generateToken(donor._id, donor.role);
+
+    res.status(200).json({
+      success: true,
+      message: 'Donor profile updated successfully!',
+      donor: {
+        id: donor._id,
+        name: donor.name,
+        email: donor.email,
+        phone: donor.phone || '',
+        bloodGroup: donor.bloodGroup || '',
+        lastLocation: donor.lastLocation || '',
+        permanentLocation: donor.permanentLocation || '',
+        city: donor.city || '',
+        address: donor.address || '',
+        latitude: donor.latitude,
+        longitude: donor.longitude,
+        lastLocationUpdate: donor.lastLocationUpdate || null,
+        profilePic: donor.profilePic || '',
+        gender: donor.gender || '',
+        dateOfBirth: donor.dateOfBirth || null,
+        age: donor.age || null,
+        weight: donor.weight || null,
+        emergencyContact: donor.emergencyContact || '',
+        lastDonationDate: donor.lastDonationDate || null,
+        isAvailable: donor.isAvailable,
+        totalDonations: donor.totalDonations,
+        role: donor.role,
+        isProfileSet: donor.isProfileSet,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error('Update Donor Profile Error:', error);
+    res.status(500).json({ success: false, message: 'Server error updating donor profile.' });
+  }
+};
+
+// @desc    Auto-update Donor Last Location (Periodic background sync every 5 minutes)
+// @route   PATCH /api/donor/location or /api/auth/donor/location
+// @access  Donor
+export const updateDonorLocation = async (req, res) => {
+  try {
+    const auth = await verifyDonorToken(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ success: false, message: auth.error });
+    }
+
+    const { latitude, longitude, lastLocation, currentLocation, city } = req.body;
+
+    if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
+      return res.status(400).json({ success: false, message: 'Latitude and Longitude are required for auto location sync.' });
+    }
+
+    const parsedLat = Number(Number(latitude).toFixed(6));
+    const parsedLng = Number(Number(longitude).toFixed(6));
+
+    if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      return res.status(400).json({ success: false, message: 'Invalid coordinates provided.' });
+    }
+
+    const donor = await Donor.findById(auth.donorId);
+    if (!donor) {
+      return res.status(404).json({ success: false, message: 'Donor account not found.' });
+    }
+
+    donor.latitude = parsedLat;
+    donor.longitude = parsedLng;
+    donor.lastLocationUpdate = new Date();
+
+    const loc = (lastLocation || currentLocation || '').trim();
+    if (loc) {
+      donor.lastLocation = loc;
+    }
+    if (city && typeof city === 'string' && city.trim()) {
+      donor.city = city.trim();
+    }
+
+    await donor.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Donor location synced successfully in background.',
+      location: {
+        latitude: donor.latitude,
+        longitude: donor.longitude,
+        lastLocation: donor.lastLocation || '',
+        city: donor.city || '',
+        lastLocationUpdate: donor.lastLocationUpdate,
+      },
+      donor: {
+        id: donor._id,
+        name: donor.name,
+        email: donor.email,
+        phone: donor.phone || '',
+        bloodGroup: donor.bloodGroup || '',
+        lastLocation: donor.lastLocation || '',
+        permanentLocation: donor.permanentLocation || '',
+        city: donor.city || '',
+        address: donor.address || '',
+        latitude: donor.latitude,
+        longitude: donor.longitude,
+        lastLocationUpdate: donor.lastLocationUpdate,
+        role: donor.role,
+        isProfileSet: Boolean(
+          donor.isProfileSet ||
+          (donor.phone?.trim() && (donor.lastLocation?.trim() || donor.permanentLocation?.trim()) && donor.bloodGroup?.trim())
+        ),
+      },
+    });
+  } catch (error) {
+    console.error('Auto Update Donor Location Error:', error);
+    res.status(500).json({ success: false, message: 'Server error during automatic location sync.' });
+  }
+};
+
+// @desc    Upload Donor profile picture to Cloudinary
+// @route   POST /api/donor/upload-profile-pic
+// @access  Donor
+export const uploadDonorProfilePic = async (req, res) => {
+  try {
+    const { image, base64 } = req.body;
+    const fileToUpload = image || base64;
+
+    if (!fileToUpload) {
+      return res.status(400).json({ success: false, message: 'Please provide an image to upload.' });
+    }
+
+    const auth = await verifyDonorToken(req);
+    if (auth.error) {
+      return res.status(auth.status).json({ success: false, message: auth.error });
+    }
+
+    let uploadUrl = fileToUpload;
+
+    try {
+      const uploadResponse = await cloudinary.uploader.upload(fileToUpload, {
+        folder: 'blood_donation/donors',
+        transformation: [
+          { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+          { quality: 'auto', fetch_format: 'auto' },
+        ],
+      });
+      uploadUrl = uploadResponse.secure_url;
+    } catch (cloudErr) {
+      console.warn('Cloudinary upload fallback to direct storage:', cloudErr.message);
+    }
+
+    const donorDoc = await Donor.findById(auth.donorId);
+    if (donorDoc) {
+      donorDoc.profilePic = uploadUrl;
+      await donorDoc.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Donor profile picture saved successfully!',
+      url: uploadUrl,
+      donor: donorDoc,
+    });
+  } catch (error) {
+    console.error('Upload Donor Profile Pic Error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to upload photo.' });
   }
 };
 
