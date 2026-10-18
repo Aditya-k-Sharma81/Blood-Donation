@@ -5,19 +5,19 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'blood_donation_secret_key_123';
 
-// Helper to authenticate donor
+// Helper to authenticate donor strictly (No cross-user fallback)
 const authenticateDonor = async (req) => {
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-    if (token) {
+    if (token && token !== 'undefined' && token !== 'null') {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
         if (decoded?.id) {
           const donor = await Donor.findById(decoded.id);
           if (donor) return { donorId: donor._id, donor };
         }
-      } catch (err) {}
+      } catch (err) { }
     }
   }
 
@@ -32,27 +32,22 @@ const authenticateDonor = async (req) => {
     req.query?.email ||
     req.body?.email;
 
-  if (donorId) {
+  if (donorId && donorId !== 'undefined' && donorId !== 'null' && donorId.length === 24) {
     try {
       const donor = await Donor.findById(donorId);
       if (donor) return { donorId: donor._id, donor };
-    } catch (e) {}
+    } catch (e) { }
   }
 
-  if (donorEmail) {
+  if (donorEmail && donorEmail !== 'undefined' && donorEmail !== 'null' && donorEmail.includes('@')) {
     try {
       const donor = await Donor.findOne({ email: donorEmail.toLowerCase().trim() });
       if (donor) return { donorId: donor._id, donor };
-    } catch (e) {}
+    } catch (e) { }
   }
 
-  // Fallback to active first donor
-  const firstDonor = await Donor.findOne();
-  if (firstDonor) {
-    return { donorId: firstDonor._id, donor: firstDonor };
-  }
-
-  return { error: 'Please login as a Donor to manage blood donation appointments.', status: 401 };
+  // Strict check: DO NOT fallback to any other user's account
+  return { error: 'Please login as a Donor to manage and view your blood donation appointments.', status: 401 };
 };
 
 // @desc    Get List of Available Donation Hospitals & Blood Banks
@@ -307,6 +302,8 @@ export const getBookedSlots = async (req, res) => {
 
 // @desc    Get All Appointments for the Logged-in Donor
 // @route   GET /api/appointments/my
+// @desc    Get All Appointments for the Logged-in Donor (shows all details: Cancelled, Scheduled, Confirmed, Completed)
+// @route   GET /api/appointments/my
 // @access  Donor (Protected)
 export const getDonorAppointments = async (req, res) => {
   try {
@@ -315,7 +312,17 @@ export const getDonorAppointments = async (req, res) => {
       return res.status(auth.status).json({ success: false, message: auth.error });
     }
 
-    const appointments = await Appointment.find({ donorId: auth.donorId }).sort({
+    const donorId = auth.donorId;
+    const donorEmail = auth.donor?.email ? auth.donor.email.toLowerCase().trim() : '';
+
+    // STRICT MATCH: Only return appointments belonging to this specific logged-in donor
+    // Returns ALL statuses: Scheduled, Confirmed, Completed, Cancelled
+    const queryConditions = [{ donorId: donorId }];
+    if (donorEmail) {
+      queryConditions.push({ donorEmail: donorEmail });
+    }
+
+    const appointments = await Appointment.find({ $or: queryConditions }).sort({
       appointmentDate: -1,
       createdAt: -1,
     });
@@ -323,6 +330,11 @@ export const getDonorAppointments = async (req, res) => {
     res.status(200).json({
       success: true,
       count: appointments.length,
+      donor: {
+        id: donorId,
+        name: auth.donor?.name || '',
+        email: donorEmail,
+      },
       appointments,
     });
   } catch (error) {
@@ -344,13 +356,21 @@ export const cancelAppointment = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
 
+    const donorId = auth.donorId;
+    const donorEmail = auth.donor?.email ? auth.donor.email.toLowerCase().trim() : '';
+
+    const queryConditions = [{ donorId: donorId }];
+    if (donorEmail) {
+      queryConditions.push({ donorEmail: donorEmail });
+    }
+
     const appointment = await Appointment.findOne({
       _id: id,
-      donorId: auth.donorId,
+      $or: queryConditions,
     });
 
     if (!appointment) {
-      return res.status(404).json({ success: false, message: 'Appointment not found.' });
+      return res.status(404).json({ success: false, message: 'Appointment not found for your donor account.' });
     }
 
     if (appointment.status === 'Completed') {
@@ -375,19 +395,130 @@ export const cancelAppointment = async (req, res) => {
 };
 
 // @desc    Get All Appointments (Admin / Hospital staff overview)
-// @route   GET /api/appointments
+// @route   GET /api/appointments or GET /api/hospital/appointments
 // @access  Hospital / Admin
 export const getAllAppointments = async (req, res) => {
   try {
-    const appointments = await Appointment.find().sort({ appointmentDate: -1, createdAt: -1 });
+    const { hospitalName, hospitalId, status, bloodGroup, search, scope } = req.query;
+
+    const filter = {};
+
+    // Filter by Hospital if specified and not 'ALL'
+    if (scope !== 'all' && hospitalName && hospitalName.trim() && hospitalName.toUpperCase() !== 'ALL') {
+      const cleanHosp = hospitalName.trim();
+      const escaped = cleanHosp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const conditions = [
+        { hospitalName: { $regex: escaped, $options: 'i' } }
+      ];
+      if (hospitalId && hospitalId.length === 24) {
+        conditions.push({ hospitalId });
+      }
+      filter.$or = conditions;
+    }
+
+    // Filter by Status: Exclude Cancelled by default so only non-cancelled appointments show in hospital
+    if (status && status.trim() && status.toUpperCase() !== 'ALL') {
+      filter.status = status.trim();
+    } else {
+      filter.status = { $ne: 'Cancelled' };
+    }
+
+    // Filter by Blood Group
+    if (bloodGroup && bloodGroup.trim() && bloodGroup.toUpperCase() !== 'ALL') {
+      filter.bloodGroup = bloodGroup.trim();
+    }
+
+    // Filter by Search Query
+    if (search && search.trim()) {
+      const q = search.trim();
+      const searchRegex = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+      const searchConditions = [
+        { donorName: searchRegex },
+        { donorEmail: searchRegex },
+        { donorPhone: searchRegex },
+        { bookingReference: searchRegex },
+        { hospitalName: searchRegex },
+        { notes: searchRegex },
+      ];
+      if (filter.$or) {
+        filter.$and = [
+          { $or: filter.$or },
+          { $or: searchConditions },
+        ];
+        delete filter.$or;
+      } else {
+        filter.$or = searchConditions;
+      }
+    }
+
+    const appointments = await Appointment.find(filter).sort({ appointmentDate: -1, createdAt: -1 });
+
+    // Compute metrics
+    const allAppointments = await Appointment.find();
+    const activeAppointments = allAppointments.filter((a) => a.status !== 'Cancelled');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const metrics = {
+      total: activeAppointments.length,
+      scheduled: allAppointments.filter((a) => a.status === 'Scheduled').length,
+      confirmed: allAppointments.filter((a) => a.status === 'Confirmed').length,
+      completed: allAppointments.filter((a) => a.status === 'Completed').length,
+      cancelled: allAppointments.filter((a) => a.status === 'Cancelled').length,
+      todayCount: activeAppointments.filter((a) => {
+        const d = new Date(a.appointmentDate);
+        return d >= today && d < tomorrow;
+      }).length,
+    };
 
     res.status(200).json({
       success: true,
       count: appointments.length,
+      metrics,
       appointments,
     });
   } catch (error) {
     console.error('Get All Appointments Error:', error);
     res.status(500).json({ success: false, message: 'Server error fetching all appointments.' });
+  }
+};
+
+// @desc    Update Appointment Status & Notes (Hospital / Admin staff)
+// @route   PATCH /api/appointments/:id/status
+// @access  Hospital / Admin
+export const updateAppointmentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, cancelledReason, notes } = req.body;
+
+    const validStatuses = ['Scheduled', 'Confirmed', 'Completed', 'Cancelled'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
+    }
+
+    const appointment = await Appointment.findById(id);
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: 'Appointment not found.' });
+    }
+
+    if (status) appointment.status = status;
+    if (cancelledReason !== undefined) appointment.cancelledReason = cancelledReason.trim();
+    if (notes !== undefined) appointment.notes = notes.trim();
+
+    await appointment.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Appointment status updated to ${appointment.status}.`,
+      appointment,
+    });
+  } catch (error) {
+    console.error('Update Appointment Status Error:', error);
+    res.status(500).json({ success: false, message: 'Server error updating appointment status.' });
   }
 };

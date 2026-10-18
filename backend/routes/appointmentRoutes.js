@@ -6,6 +6,7 @@ import {
   getDonorAppointments,
   cancelAppointment,
   getAllAppointments,
+  updateAppointmentStatus,
 } from '../controllers/appointmentController.js';
 
 const router = express.Router();
@@ -23,7 +24,10 @@ router.get('/appointments/my', getDonorAppointments);
 router.patch('/appointments/:id/cancel', cancelAppointment);
 router.put('/appointments/:id/cancel', cancelAppointment);
 
-// Admin / Overview
+// Admin & Hospital Appointments Management
 router.get('/appointments', getAllAppointments);
+router.get('/hospital/appointments', getAllAppointments);
+router.patch('/appointments/:id/status', updateAppointmentStatus);
+router.put('/appointments/:id/status', updateAppointmentStatus);
 
 export default router;

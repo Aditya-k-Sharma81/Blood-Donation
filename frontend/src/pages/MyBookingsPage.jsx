@@ -33,20 +33,43 @@ export default function MyBookingsPage({ user }) {
   const [selectedPass, setSelectedPass] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
 
-  // Fetch appointments for current logged in donor
+  const activeUser = useMemo(() => {
+    if (user && (user.id || user._id || user.email)) return user;
+    try {
+      const saved = localStorage.getItem('rakt_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  }, [user]);
+
+  // Fetch appointments strictly for the logged-in donor
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const headers = {
-        'x-user-id': user?.id || user?._id || '',
-        'x-donor-id': user?.id || user?._id || '',
-        'x-user-email': user?.email || '',
-      };
-      if (user?.token) {
-        headers['Authorization'] = `Bearer ${user.token}`;
+      const donorId = activeUser?.id || activeUser?._id || '';
+      const donorEmail = activeUser?.email || '';
+
+      if (!donorId && !donorEmail) {
+        setAppointments([]);
+        setLoading(false);
+        return;
       }
 
-      const res = await fetch('/api/appointments/my', { headers });
+      const headers = {
+        'x-user-id': donorId,
+        'x-donor-id': donorId,
+        'x-user-email': donorEmail,
+      };
+      if (activeUser?.token) {
+        headers['Authorization'] = `Bearer ${activeUser.token}`;
+      }
+
+      const queryParams = new URLSearchParams();
+      if (donorId) queryParams.append('donorId', donorId);
+      if (donorEmail) queryParams.append('email', donorEmail);
+
+      const res = await fetch(`/api/appointments/my?${queryParams.toString()}`, { headers });
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.appointments)) {
         setAppointments(data.appointments);
@@ -63,7 +86,7 @@ export default function MyBookingsPage({ user }) {
 
   useEffect(() => {
     fetchAppointments();
-  }, []);
+  }, [activeUser?.id, activeUser?._id, activeUser?.email]);
 
   // Filtered list based on status tab
   const filteredAppointments = useMemo(() => {
@@ -191,6 +214,12 @@ export default function MyBookingsPage({ user }) {
               <p className="text-xs text-slate-500">
                 Manage your scheduled appointments, view complete details, and access digital donation passes.
               </p>
+              {activeUser && (
+                <p className="text-[11px] text-rose-700 font-medium mt-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Logged in as: <strong>{activeUser.name || 'Donor'}</strong> ({activeUser.email})</span>
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -567,7 +596,17 @@ export default function MyBookingsPage({ user }) {
                   <Droplets className="w-5 h-5 fill-rose-600/20" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                      selectedPass.status === 'Cancelled'
+                        ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                        : selectedPass.status === 'Completed'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                        : selectedPass.status === 'Confirmed'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}
+                  >
                     {selectedPass.status}
                   </span>
                   <h2 className="text-base font-extrabold text-slate-900 mt-0.5">
@@ -632,12 +671,26 @@ export default function MyBookingsPage({ user }) {
                 <span className="font-bold text-slate-800">{selectedPass.donorPhone}</span>
               </div>
 
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/60">
                 <span className="text-slate-500 font-medium">Blood Group:</span>
                 <span className="font-extrabold text-red-600 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded-md text-sm">
                   🩸 {selectedPass.bloodGroup}
                 </span>
               </div>
+
+              {selectedPass.status === 'Cancelled' && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 space-y-1">
+                  <span className="font-bold block text-[11px]">Cancellation Notice:</span>
+                  <p className="text-xs">{selectedPass.cancelledReason || 'This appointment was cancelled.'}</p>
+                </div>
+              )}
+
+              {selectedPass.notes && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 space-y-1">
+                  <span className="font-bold block text-[11px]">Donor Note:</span>
+                  <p className="text-xs">{selectedPass.notes}</p>
+                </div>
+              )}
             </div>
 
             {/* Simulated Barcode Banner */}

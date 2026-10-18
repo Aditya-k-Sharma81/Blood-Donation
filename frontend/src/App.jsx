@@ -8,6 +8,7 @@ import HospitalLogin from './components/HospitalLogin';
 import DonorPage from './pages/DonorPage';
 import AdminPage from './pages/AdminPage';
 import HospitalPage from './pages/HospitalPage';
+import HospitalAppointmentsPage from './pages/HospitalAppointmentsPage';
 import HospitalSignUpPage from './pages/HospitalSignUpPage';
 import AdminProfilePage from './pages/AdminProfilePage';
 import StaffManagementPage from './pages/StaffManagementPage';
@@ -234,8 +235,30 @@ export default function App() {
             <Route
               path="/hospital"
               element={
-                loggedInUser && loggedInUser.role === 'HOSPITAL' ? (
+                loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
                   <HospitalPage user={loggedInUser} onLogout={handleLogout} />
+                ) : (
+                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            />
+
+            {/* /hospital/appointments -> Hospital Appointments Overview & Verification */}
+            <Route
+              path="/hospital/appointments"
+              element={
+                loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
+                  <HospitalAppointmentsPage user={loggedInUser} onLogout={handleLogout} />
+                ) : (
+                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            />
+            <Route
+              path="/hospital/appointment"
+              element={
+                loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
+                  <HospitalAppointmentsPage user={loggedInUser} onLogout={handleLogout} />
                 ) : (
                   <HospitalLogin onLoginSuccess={handleLoginSuccess} />
                 )

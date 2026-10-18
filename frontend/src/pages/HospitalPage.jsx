@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Droplets,
   Plus,
@@ -18,7 +19,8 @@ import {
   HelpCircle,
   X,
   Save,
-  RotateCcw
+  RotateCcw,
+  Calendar,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -319,7 +321,16 @@ export default function HospitalPage({ user, onLogout }) {
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-2.5 self-start md:self-auto">
+        <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
+          <Link
+            to="/hospital/appointments"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-all cursor-pointer shadow-xs"
+            title="View all voluntary blood donation appointments"
+          >
+            <Calendar size={14} className="text-red-600" />
+            <span>Appointments</span>
+          </Link>
+
           <button
             onClick={() => fetchStockData()}
             disabled={loading}
@@ -437,22 +448,20 @@ export default function HospitalPage({ user, onLogout }) {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
           <button
             onClick={() => setFilterStatus('ALL')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              filterStatus === 'ALL'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${filterStatus === 'ALL'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
           >
             All Groups (8)
           </button>
 
           <button
             onClick={() => setFilterStatus('CRITICAL')}
-            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              filterStatus === 'CRITICAL'
-                ? 'bg-red-700 text-white shadow-xs'
-                : 'text-red-700 hover:bg-red-50'
-            }`}
+            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${filterStatus === 'CRITICAL'
+              ? 'bg-red-700 text-white shadow-xs'
+              : 'text-red-700 hover:bg-red-50'
+              }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
             <span>Critical ({metrics.criticalCount})</span>
@@ -460,11 +469,10 @@ export default function HospitalPage({ user, onLogout }) {
 
           <button
             onClick={() => setFilterStatus('LOW')}
-            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              filterStatus === 'LOW'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-amber-800 hover:bg-amber-50'
-            }`}
+            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${filterStatus === 'LOW'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'text-amber-800 hover:bg-amber-50'
+              }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
             <span>Low ({metrics.lowCount})</span>
@@ -472,11 +480,10 @@ export default function HospitalPage({ user, onLogout }) {
 
           <button
             onClick={() => setFilterStatus('SUFFICIENT')}
-            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              filterStatus === 'SUFFICIENT'
-                ? 'bg-emerald-700 text-white shadow-xs'
-                : 'text-emerald-700 hover:bg-emerald-50'
-            }`}
+            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${filterStatus === 'SUFFICIENT'
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'text-emerald-700 hover:bg-emerald-50'
+              }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             <span>Sufficient ({metrics.sufficientCount})</span>
@@ -507,22 +514,20 @@ export default function HospitalPage({ user, onLogout }) {
           <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 shrink-0">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewMode === 'grid'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === 'grid'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
               title="Grid Cards View"
             >
               <LayoutGrid size={15} />
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewMode === 'table'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === 'table'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
               title="Detailed Table View"
             >
               <List size={15} />
@@ -629,13 +634,12 @@ export default function HospitalPage({ user, onLogout }) {
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          item.status === 'CRITICAL'
-                            ? 'bg-red-500'
-                            : item.status === 'LOW'
+                        className={`h-full rounded-full transition-all duration-300 ${item.status === 'CRITICAL'
+                          ? 'bg-red-500'
+                          : item.status === 'LOW'
                             ? 'bg-amber-500'
                             : 'bg-emerald-500'
-                        }`}
+                          }`}
                         style={{ width: `${Math.min(100, item.percentage)}%` }}
                       ></div>
                     </div>
@@ -742,13 +746,12 @@ export default function HospitalPage({ user, onLogout }) {
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div
-                              className={`h-full rounded-full ${
-                                item.status === 'CRITICAL'
-                                  ? 'bg-red-500'
-                                  : item.status === 'LOW'
+                              className={`h-full rounded-full ${item.status === 'CRITICAL'
+                                ? 'bg-red-500'
+                                : item.status === 'LOW'
                                   ? 'bg-amber-500'
                                   : 'bg-emerald-500'
-                              }`}
+                                }`}
                               style={{ width: `${Math.min(100, item.percentage)}%` }}
                             ></div>
                           </div>
