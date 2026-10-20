@@ -110,7 +110,7 @@ export const recordDonation = async (req, res) => {
     appointment.notes = (appointment.notes ? appointment.notes + ' | ' : '') + `Donation recorded: ${bloodAmountMl} mL by ${effectiveDoctorName}`;
     await appointment.save();
 
-    // 3. Update Hospital Blood Stock Inventory with verified blood group
+    // 3. Update Hospital Blood Stock Inventory with verified blood group and volume breakdown
     try {
       const stockGroup = verifiedBloodGroup.trim();
       let stockItem = await BloodStock.findOne({
@@ -118,16 +118,33 @@ export const recordDonation = async (req, res) => {
         bloodGroup: stockGroup,
       });
 
+      const collectedUnits = Math.max(1, Number(unitsCollected) || 1);
+      const vol = Number(bloodAmountMl) || 350;
+
       if (stockItem) {
-        stockItem.units = (stockItem.units || 0) + (Number(unitsCollected) || 1);
+        if (vol >= 475) {
+          stockItem.units500 = (stockItem.units500 || 0) + collectedUnits;
+        } else if (vol >= 400) {
+          stockItem.units450 = (stockItem.units450 || 0) + collectedUnits;
+        } else {
+          stockItem.units350 = (stockItem.units350 || 0) + collectedUnits;
+        }
+        stockItem.units = (stockItem.units350 || 0) + (stockItem.units450 || 0) + (stockItem.units500 || 0);
         stockItem.lastUpdated = new Date();
         stockItem.updatedBy = effectiveDoctorName;
         await stockItem.save();
       } else {
+        const u350 = vol < 400 ? collectedUnits : 0;
+        const u450 = vol >= 400 && vol < 475 ? collectedUnits : 0;
+        const u500 = vol >= 475 ? collectedUnits : 0;
+
         await BloodStock.create({
           hospitalName: appointment.hospitalName,
           bloodGroup: stockGroup,
-          units: Number(unitsCollected) || 1,
+          units: collectedUnits,
+          units350: u350,
+          units450: u450,
+          units500: u500,
           lastUpdated: new Date(),
           updatedBy: effectiveDoctorName,
         });

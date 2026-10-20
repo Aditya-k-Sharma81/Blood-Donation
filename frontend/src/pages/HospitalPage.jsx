@@ -2,8 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Droplets,
-  Plus,
-  Minus,
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
@@ -56,7 +54,9 @@ export default function HospitalPage({ user, onLogout }) {
 
   // Modal State for Manual Quantity Adjustment
   const [editingItem, setEditingItem] = useState(null);
-  const [editUnits, setEditUnits] = useState('');
+  const [editUnits350, setEditUnits350] = useState(0);
+  const [editUnits450, setEditUnits450] = useState(0);
+  const [editUnits500, setEditUnits500] = useState(0);
   const [editReason, setEditReason] = useState('Donation Intake');
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -105,54 +105,13 @@ export default function HospitalPage({ user, onLogout }) {
     fetchStockData();
   }, [user]);
 
-  // Handle Quick +/- adjustment (1 unit delta)
-  const handleDeltaChange = async (bloodGroup, delta) => {
-    try {
-      setUpdatingGroup(bloodGroup);
 
-      const headers = {
-        'Content-Type': 'application/json',
-        'x-user-id': user?.id || user?._id || '',
-      };
-      if (user?.token) {
-        headers['Authorization'] = `Bearer ${user.token}`;
-      }
-
-      const res = await fetch('/api/hospital/stock/update', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          hospitalName,
-          bloodGroup,
-          delta,
-          updatedBy: user?.name || user?.email || 'Hospital Staff',
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setStocks(data.stocks || []);
-        if (data.metrics) setMetrics(data.metrics);
-      } else {
-        throw new Error(data.message || 'Could not update stock units');
-      }
-    } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Update Failed',
-        text: err.message,
-        confirmButtonColor: '#e11d48',
-      });
-    } finally {
-      setUpdatingGroup(null);
-    }
-  };
-
-  // Open Edit Modal for exact unit count
+  // Open Edit Modal for exact unit count per volume
   const handleOpenEdit = (stockItem) => {
     setEditingItem(stockItem);
-    setEditUnits(stockItem.units.toString());
+    setEditUnits350(stockItem.units350 ?? 0);
+    setEditUnits450(stockItem.units450 ?? 0);
+    setEditUnits500(stockItem.units500 ?? 0);
     setEditReason('Routine Inventory Audit');
   };
 
@@ -161,16 +120,10 @@ export default function HospitalPage({ user, onLogout }) {
     e.preventDefault();
     if (!editingItem) return;
 
-    const parsed = parseInt(editUnits, 10);
-    if (isNaN(parsed) || parsed < 0) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Invalid Units',
-        text: 'Please enter a valid non-negative number of units.',
-        confirmButtonColor: '#e11d48',
-      });
-      return;
-    }
+    const u350 = Math.max(0, parseInt(editUnits350, 10) || 0);
+    const u450 = Math.max(0, parseInt(editUnits450, 10) || 0);
+    const u500 = Math.max(0, parseInt(editUnits500, 10) || 0);
+    const total = u350 + u450 + u500;
 
     try {
       setSavingEdit(true);
@@ -189,7 +142,10 @@ export default function HospitalPage({ user, onLogout }) {
         body: JSON.stringify({
           hospitalName,
           bloodGroup: editingItem.bloodGroup,
-          units: parsed,
+          units350: u350,
+          units450: u450,
+          units500: u500,
+          units: total,
           updatedBy: `${user?.name || 'Staff'} (${editReason})`,
         }),
       });
@@ -204,8 +160,8 @@ export default function HospitalPage({ user, onLogout }) {
         Swal.fire({
           icon: 'success',
           title: `${editingItem.bloodGroup} Stock Updated`,
-          text: `Current inventory set to ${parsed} units successfully.`,
-          timer: 1500,
+          text: `Total: ${total} bags (350mL: ${u350}, 450mL: ${u450}, 500mL: ${u500}) updated successfully.`,
+          timer: 1800,
           showConfirmButton: false,
           iconColor: '#10b981',
         });
@@ -385,12 +341,22 @@ export default function HospitalPage({ user, onLogout }) {
               <Droplets size={16} />
             </div>
           </div>
-          <p className="text-2xl font-bold text-slate-900 mt-2">
-            {metrics.totalUnits} <span className="text-xs font-medium text-slate-500">Units</span>
-          </p>
-          <p className="text-[11px] text-slate-500 mt-1">
-            Across all 8 blood groups
-          </p>
+          <div className="flex items-baseline gap-1.5 mt-2">
+            <span className="text-2xl font-bold text-slate-900">{metrics.totalUnits}</span>
+            <span className="text-xs font-medium text-slate-500">Units (Bags)</span>
+          </div>
+          {/* Bag Volume Breakdown Chips */}
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200" title="Total 350 mL Bags">
+              350ml: {metrics.totalUnits350 ?? 0}
+            </span>
+            <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-200" title="Total 450 mL Bags">
+              450ml: {metrics.totalUnits450 ?? 0}
+            </span>
+            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-200" title="Total 500 mL Bags">
+              500ml: {metrics.totalUnits500 ?? 0}
+            </span>
+          </div>
         </div>
 
         {/* Sufficient Stock */}
@@ -612,7 +578,7 @@ export default function HospitalPage({ user, onLogout }) {
                   </div>
 
                   {/* Big Unit Number */}
-                  <div className="my-3">
+                  <div className="my-2.5">
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-3xl font-extrabold text-slate-900 tracking-tight">
                         {item.units}
@@ -624,6 +590,37 @@ export default function HospitalPage({ user, onLogout }) {
                     <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1" title={meta.desc}>
                       {meta.desc}
                     </p>
+                  </div>
+
+                  {/* Bag Volume Breakdown: 350 mL, 450 mL, 500 mL */}
+                  <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5 my-2.5">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                      <span>Bag Volume Breakdown</span>
+                      <span className="text-[9px] text-slate-400 font-semibold">350 / 450 / 500 mL</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {/* 350 mL */}
+                      <div className="bg-white border border-blue-200/90 rounded-lg p-1.5 text-center shadow-2xs">
+                        <span className="block text-[9px] font-black text-blue-700 uppercase">350 mL</span>
+                        <span className="text-sm font-extrabold text-slate-900">{item.units350 ?? 0}</span>
+                        <span className="block text-[8px] text-slate-400 font-medium">Standard</span>
+                      </div>
+
+                      {/* 450 mL */}
+                      <div className="bg-white border border-purple-200/90 rounded-lg p-1.5 text-center shadow-2xs">
+                        <span className="block text-[9px] font-black text-purple-700 uppercase">450 mL</span>
+                        <span className="text-sm font-extrabold text-slate-900">{item.units450 ?? 0}</span>
+                        <span className="block text-[8px] text-slate-400 font-medium">High Vol</span>
+                      </div>
+
+                      {/* 500 mL */}
+                      <div className="bg-white border border-emerald-200/90 rounded-lg p-1.5 text-center shadow-2xs">
+                        <span className="block text-[9px] font-black text-emerald-700 uppercase">500 mL</span>
+                        <span className="text-sm font-extrabold text-slate-900">{item.units500 ?? 0}</span>
+                        <span className="block text-[8px] text-slate-400 font-medium">Max Bag</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Clean Simple Progress Bar */}
@@ -646,38 +643,15 @@ export default function HospitalPage({ user, onLogout }) {
                   </div>
                 </div>
 
-                {/* Bottom Action Controls: Quick Adjust +/- & Edit Button */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    {/* Minus 1 Bag */}
-                    <button
-                      onClick={() => handleDeltaChange(item.bloodGroup, -1)}
-                      disabled={isUpdating || item.units <= 0}
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm transition-colors cursor-pointer disabled:opacity-40"
-                      title="Dispatch / Deduct 1 Unit"
-                    >
-                      <Minus size={13} />
-                    </button>
-
-                    {/* Plus 1 Bag */}
-                    <button
-                      onClick={() => handleDeltaChange(item.bloodGroup, 1)}
-                      disabled={isUpdating}
-                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm transition-colors cursor-pointer disabled:opacity-40"
-                      title="Add 1 Unit (Intake)"
-                    >
-                      <Plus size={13} />
-                    </button>
-                  </div>
-
-                  {/* Set Exact Quantity Button */}
+                {/* Bottom Action Controls: Edit Button */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
                   <button
                     onClick={() => handleOpenEdit(item)}
                     disabled={isUpdating}
-                    className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-all cursor-pointer shadow-xs"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs"
                     title="Edit quantity directly"
                   >
-                    <Edit3 size={12} className="text-slate-500" />
+                    <Edit3 size={13} className="text-slate-500" />
                     <span>Edit Units</span>
                   </button>
                 </div>
@@ -694,7 +668,8 @@ export default function HospitalPage({ user, onLogout }) {
                 <tr>
                   <th className="px-5 py-3.5">Blood Group</th>
                   <th className="px-5 py-3.5">Compatibility & Type</th>
-                  <th className="px-5 py-3.5">Units Available</th>
+                  <th className="px-5 py-3.5">Total Bags</th>
+                  <th className="px-5 py-3.5">Bag Sizes (350 / 450 / 500 mL)</th>
                   <th className="px-5 py-3.5">Storage Capacity</th>
                   <th className="px-5 py-3.5">Stock Status</th>
                   <th className="px-5 py-3.5 text-right">Staff Actions</th>
@@ -734,7 +709,25 @@ export default function HospitalPage({ user, onLogout }) {
                         <span className="text-base font-bold text-slate-900">
                           {item.units}
                         </span>
-                        <span className="text-[11px] text-slate-500 ml-1">Units (Bags)</span>
+                        <span className="text-[11px] text-slate-500 ml-1">Bags</span>
+                      </td>
+
+                      {/* Bag Sizes Breakdown */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="350 mL Standard Bags">
+                            <span className="text-[10px] text-blue-500 font-semibold">350ml:</span>
+                            <span>{item.units350 ?? 0}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200" title="450 mL High Volume Bags">
+                            <span className="text-[10px] text-purple-500 font-semibold">450ml:</span>
+                            <span>{item.units450 ?? 0}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="500 mL Max Bags">
+                            <span className="text-[10px] text-emerald-500 font-semibold">500ml:</span>
+                            <span>{item.units500 ?? 0}</span>
+                          </span>
+                        </div>
                       </td>
 
                       {/* Storage Gauge */}
@@ -782,31 +775,13 @@ export default function HospitalPage({ user, onLogout }) {
 
                       {/* Actions */}
                       <td className="px-5 py-4 text-right">
-                        <div className="inline-flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleDeltaChange(item.bloodGroup, -1)}
-                            disabled={isUpdating || item.units <= 0}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer disabled:opacity-40"
-                            title="Dispatch 1 Unit"
-                          >
-                            <Minus size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleDeltaChange(item.bloodGroup, 1)}
-                            disabled={isUpdating}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer disabled:opacity-40"
-                            title="Intake 1 Unit"
-                          >
-                            <Plus size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleOpenEdit(item)}
-                            disabled={isUpdating}
-                            className="ml-1 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                          >
-                            Edit
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleOpenEdit(item)}
+                          disabled={isUpdating}
+                          className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer shadow-xs"
+                        >
+                          Edit Units
+                        </button>
                       </td>
                     </tr>
                   );
@@ -845,21 +820,70 @@ export default function HospitalPage({ user, onLogout }) {
             {/* Modal Form */}
             <form onSubmit={handleSaveEdit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Available Units / Bags
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Inventory Units by Bag Size
                 </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="number"
-                    min="0"
-                    max="500"
-                    value={editUnits}
-                    onChange={(e) => setEditUnits(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 focus:border-slate-500 focus:bg-white rounded-xl text-slate-900 text-sm px-3.5 py-2.5 outline-none font-bold text-center"
-                    required
-                    autoFocus
-                  />
-                  <span className="absolute right-3.5 text-xs text-slate-400 font-medium">Bags</span>
+
+                {/* 3 Size Inputs */}
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {/* 350 mL */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center focus-within:border-blue-500 focus-within:bg-white transition-all">
+                    <label className="block text-[11px] font-bold text-blue-700 mb-1">
+                      350 mL
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="300"
+                      value={editUnits350}
+                      onChange={(e) => setEditUnits350(e.target.value)}
+                      className="w-full text-center font-extrabold text-sm text-slate-900 bg-transparent outline-none"
+                      required
+                    />
+                    <span className="block text-[9px] text-slate-400 mt-0.5">Standard</span>
+                  </div>
+
+                  {/* 450 mL */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center focus-within:border-purple-500 focus-within:bg-white transition-all">
+                    <label className="block text-[11px] font-bold text-purple-700 mb-1">
+                      450 mL
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="300"
+                      value={editUnits450}
+                      onChange={(e) => setEditUnits450(e.target.value)}
+                      className="w-full text-center font-extrabold text-sm text-slate-900 bg-transparent outline-none"
+                      required
+                    />
+                    <span className="block text-[9px] text-slate-400 mt-0.5">High Vol</span>
+                  </div>
+
+                  {/* 500 mL */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center focus-within:border-emerald-500 focus-within:bg-white transition-all">
+                    <label className="block text-[11px] font-bold text-emerald-700 mb-1">
+                      500 mL
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="300"
+                      value={editUnits500}
+                      onChange={(e) => setEditUnits500(e.target.value)}
+                      className="w-full text-center font-extrabold text-sm text-slate-900 bg-transparent outline-none"
+                      required
+                    />
+                    <span className="block text-[9px] text-slate-400 mt-0.5">Max Bag</span>
+                  </div>
+                </div>
+
+                {/* Total Bags Calculated Summary */}
+                <div className="p-2.5 bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-600">Calculated Total Bags:</span>
+                  <span className="font-extrabold text-slate-900 text-sm">
+                    {(parseInt(editUnits350 || 0, 10) + parseInt(editUnits450 || 0, 10) + parseInt(editUnits500 || 0, 10))} Bags
+                  </span>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1 text-center">
                   Current: {editingItem.units} Bags • Storage Capacity: {editingItem.capacity} Bags

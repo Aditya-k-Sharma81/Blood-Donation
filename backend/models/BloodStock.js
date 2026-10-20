@@ -30,6 +30,22 @@ const bloodStockSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Units cannot be negative'],
     },
+    // Volume Breakdown (in mL)
+    units350: {
+      type: Number,
+      default: 0,
+      min: [0, '350 mL units cannot be negative'],
+    },
+    units450: {
+      type: Number,
+      default: 0,
+      min: [0, '450 mL units cannot be negative'],
+    },
+    units500: {
+      type: Number,
+      default: 0,
+      min: [0, '500 mL units cannot be negative'],
+    },
     capacity: {
       type: Number,
       default: 50,

@@ -100,6 +100,9 @@ export const getHospitalStock = async (req, res) => {
         hospitalName,
         bloodGroup: bg,
         units: 0,
+        units350: 0,
+        units450: 0,
+        units500: 0,
         capacity: 50,
         updatedBy: 'Database Setup',
       }));
@@ -112,17 +115,53 @@ export const getHospitalStock = async (req, res) => {
       stockRecords = await BloodStock.find(query);
     }
 
+    // Ensure all documents have bag volume breakdown initialized (units350, units450, units500)
+    for (const record of stockRecords) {
+      const u350 = record.units350 || 0;
+      const u450 = record.units450 || 0;
+      const u500 = record.units500 || 0;
+      if (u350 + u450 + u500 !== record.units) {
+        if (record.units <= 0) {
+          record.units350 = 0;
+          record.units450 = 0;
+          record.units500 = 0;
+          await record.save().catch(() => {});
+        } else {
+          // Proportionate distribution for existing baseline stock: ~65% 350 mL, ~25% 450 mL, ~10% 500 mL
+          const total = record.units;
+          const p500 = Math.max(0, Math.floor(total * 0.10));
+          const p450 = Math.max(0, Math.floor(total * 0.25));
+          const p350 = total - p500 - p450;
+          record.units350 = p350;
+          record.units450 = p450;
+          record.units500 = p500;
+          await record.save().catch(() => {});
+        }
+      }
+    }
+
     // Map database documents to consistent blood group order
     const stockMap = new Map(stockRecords.map((s) => [s.bloodGroup, s]));
     const formattedStocks = ALL_BLOOD_GROUPS.map((bg) => {
       const item = stockMap.get(bg);
-      const units = item ? item.units : 0;
+      const units350 = item ? (item.units350 || 0) : 0;
+      const units450 = item ? (item.units450 || 0) : 0;
+      const units500 = item ? (item.units500 || 0) : 0;
+      const units = item ? ((units350 + units450 + units500 > 0) ? (units350 + units450 + units500) : item.units) : 0;
       const capacity = item ? item.capacity : 50;
       return {
         id: item?._id || bg,
         hospitalUserId: item?.hospitalUserId || hospitalUserId,
         bloodGroup: bg,
         units,
+        units350,
+        units450,
+        units500,
+        breakdown: {
+          ml350: units350,
+          ml450: units450,
+          ml500: units500,
+        },
         capacity,
         percentage: Math.min(100, Math.round((units / capacity) * 100)),
         status: getStockStatus(units),
@@ -132,6 +171,9 @@ export const getHospitalStock = async (req, res) => {
     });
 
     const totalUnits = formattedStocks.reduce((sum, item) => sum + item.units, 0);
+    const totalUnits350 = formattedStocks.reduce((sum, item) => sum + item.units350, 0);
+    const totalUnits450 = formattedStocks.reduce((sum, item) => sum + item.units450, 0);
+    const totalUnits500 = formattedStocks.reduce((sum, item) => sum + item.units500, 0);
     const criticalCount = formattedStocks.filter((s) => s.status === 'CRITICAL').length;
     const lowCount = formattedStocks.filter((s) => s.status === 'LOW').length;
     const sufficientCount = formattedStocks.filter((s) => s.status === 'SUFFICIENT').length;
@@ -143,6 +185,9 @@ export const getHospitalStock = async (req, res) => {
       totalUnits,
       metrics: {
         totalUnits,
+        totalUnits350,
+        totalUnits450,
+        totalUnits500,
         criticalCount,
         lowCount,
         sufficientCount,
@@ -156,12 +201,12 @@ export const getHospitalStock = async (req, res) => {
   }
 };
 
-// @desc    Update single blood group stock in database (increment, decrement, or set exact units)
+// @desc    Update single blood group stock in database (increment, decrement, or set exact units per volume)
 // @route   POST /api/hospital/stock/update or PATCH /api/hospital/stock/update
 // @access  Hospital Staff
 export const updateBloodStock = async (req, res) => {
   try {
-    const { bloodGroup, units, delta, updatedBy } = req.body;
+    const { bloodGroup, units, units350, units450, units500, delta, updatedBy } = req.body;
     const { admin, hospitalUserId, hospitalName } = await resolveHospitalInfo(req);
 
     if (!bloodGroup || !ALL_BLOOD_GROUPS.includes(bloodGroup)) {
@@ -183,20 +228,35 @@ export const updateBloodStock = async (req, res) => {
         hospitalName,
         bloodGroup,
         units: 0,
+        units350: 0,
+        units450: 0,
+        units500: 0,
         capacity: 50,
       });
     } else if (hospitalUserId && !record.hospitalUserId) {
       record.hospitalUserId = hospitalUserId;
     }
 
-    if (delta !== undefined && typeof delta === 'number') {
-      record.units = Math.max(0, record.units + delta);
+    if (units350 !== undefined || units450 !== undefined || units500 !== undefined) {
+      const u350 = Math.max(0, Number(units350) || 0);
+      const u450 = Math.max(0, Number(units450) || 0);
+      const u500 = Math.max(0, Number(units500) || 0);
+      record.units350 = u350;
+      record.units450 = u450;
+      record.units500 = u500;
+      record.units = u350 + u450 + u500;
     } else if (units !== undefined) {
       const parsedUnits = Number(units);
       if (isNaN(parsedUnits) || parsedUnits < 0) {
         return res.status(400).json({ success: false, message: 'Units must be a non-negative number.' });
       }
       record.units = parsedUnits;
+      record.units350 = parsedUnits;
+      record.units450 = 0;
+      record.units500 = 0;
+    } else if (delta !== undefined && typeof delta === 'number') {
+      record.units = Math.max(0, record.units + delta);
+      record.units350 = Math.max(0, (record.units350 || 0) + delta);
     }
 
     record.updatedBy = updatedBy?.trim() || 'Hospital Staff';
@@ -229,6 +289,9 @@ export const resetBloodStock = async (req, res) => {
           hospitalName,
           bloodGroup: bg,
           units: 0,
+          units350: 0,
+          units450: 0,
+          units500: 0,
           capacity: 50,
           updatedBy: 'Stock Reset to Zero',
         },
