@@ -1,9 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { HeartHandshake, LogOut, User, Droplets, MapPin, Calendar, ClipboardList } from 'lucide-react';
+import { HeartHandshake, LogOut, User, Droplets, MapPin, Calendar, ClipboardList, AlertTriangle, FileText } from 'lucide-react';
+import MedicalReportModal from '../components/MedicalReportModal';
 
 export default function DonorPage({ user, onLogout, autoLocation }) {
   const navigate = useNavigate();
+  const [mismatchAlert, setMismatchAlert] = useState(null);
+  const [selectedReport, setSelectedReport] = useState(null);
+
+  useEffect(() => {
+    const checkMismatch = async () => {
+      try {
+        const donorId = user?.id || user?._id || '';
+        const donorEmail = user?.email || '';
+        if (!donorId && !donorEmail) return;
+
+        const params = new URLSearchParams();
+        if (donorId) params.append('donorId', donorId);
+        if (donorEmail) params.append('email', donorEmail);
+
+        const res = await fetch(`/api/donor/notifications?${params.toString()}`);
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.notifications)) {
+          const mismatch = data.notifications.find((n) => n.type === 'BLOOD_GROUP_MISMATCH');
+          if (mismatch) setMismatchAlert(mismatch);
+        }
+      } catch (e) { }
+    };
+    checkMismatch();
+  }, [user?.id, user?._id, user?.email]);
+
   const isProfileSet = Boolean(
     user?.isProfileSet ||
     (user?.phone?.trim() && (user?.lastLocation?.trim() || user?.permanentLocation?.trim() || user?.currentLocation?.trim()) && user?.bloodGroup?.trim())
@@ -28,6 +54,43 @@ export default function DonorPage({ user, onLogout, autoLocation }) {
       <h1 className="text-3xl md:text-4xl font-extrabold text-rose-600 tracking-tight mb-3">
         Voluntary Donor Portal
       </h1>
+
+      {/* Blood Group Discrepancy Alert Banner */}
+      {mismatchAlert && (
+        <div className="w-full mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl shadow-sm text-left flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                  Medical Notice: Blood Group Discrepancy
+                </span>
+                <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                  Lab Cross-Check
+                </span>
+              </div>
+              <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                {mismatchAlert.message}
+              </p>
+              {mismatchAlert.details?.verifiedBloodGroup && (
+                <p className="text-[11px] text-amber-950 mt-1 font-bold">
+                  Verified Blood Group: <span className="text-rose-700 font-extrabold">{mismatchAlert.details.verifiedBloodGroup}</span> (was {mismatchAlert.details.registeredBloodGroup})
+                </p>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setSelectedReport(mismatchAlert)}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 self-start sm:self-auto flex items-center gap-1.5"
+          >
+            <FileText size={13} />
+            <span>View Full Report</span>
+          </button>
+        </div>
+      )}
 
       {user && (
         <div className="flex flex-col items-center gap-2 mb-6 w-full">
@@ -135,6 +198,13 @@ export default function DonorPage({ user, onLogout, autoLocation }) {
           <span>Logout</span>
         </button>
       </div>
+
+      {/* Clinical Examination & Medical Report Modal */}
+      <MedicalReportModal
+        isOpen={Boolean(selectedReport)}
+        onClose={() => setSelectedReport(null)}
+        report={selectedReport}
+      />
     </div>
   );
 }

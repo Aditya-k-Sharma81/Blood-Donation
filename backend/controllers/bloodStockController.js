@@ -27,7 +27,7 @@ const resolveAdmin = async (req) => {
     try {
       const admin = await Admin.findById(adminId);
       if (admin) return admin;
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // 2. From logged in Hospital User (permittedBy points to Admin._id)
@@ -42,7 +42,7 @@ const resolveAdmin = async (req) => {
 
       const adminUser = await Admin.findById(userId);
       if (adminUser) return adminUser;
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // 3. Fallback: Query the system admin
@@ -105,7 +105,7 @@ export const getHospitalStock = async (req, res) => {
       }));
 
       if (docsToInsert.length > 0) {
-        await BloodStock.insertMany(docsToInsert, { ordered: false }).catch(() => {});
+        await BloodStock.insertMany(docsToInsert, { ordered: false }).catch(() => { });
       }
 
       // Re-fetch latest documents from MongoDB

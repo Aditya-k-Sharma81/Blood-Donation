@@ -23,7 +23,10 @@ import {
   ClipboardList,
   ShieldCheck,
   UserCheck,
+  HeartPulse,
+  AlertTriangle
 } from 'lucide-react';
+import MedicalReportModal from '../components/MedicalReportModal';
 
 export default function MyBookingsPage({ user }) {
   const navigate = useNavigate();
@@ -33,6 +36,10 @@ export default function MyBookingsPage({ user }) {
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'UPCOMING' | 'COMPLETED' | 'CANCELLED'
   const [selectedPass, setSelectedPass] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
+
+  // Medical Record & Mismatch Alert States
+  const [selectedMedicalReport, setSelectedMedicalReport] = useState(null);
+  const [mismatchAlert, setMismatchAlert] = useState(null);
 
   const activeUser = useMemo(() => {
     if (user && (user.id || user._id || user.email)) return user;
@@ -88,6 +95,56 @@ export default function MyBookingsPage({ user }) {
   useEffect(() => {
     fetchAppointments();
   }, [activeUser?.id, activeUser?._id, activeUser?.email]);
+
+  // Check if donor has any Blood Group Mismatch notifications
+  useEffect(() => {
+    const checkMismatchAlert = async () => {
+      try {
+        const donorId = activeUser?.id || activeUser?._id || '';
+        const donorEmail = activeUser?.email || '';
+        if (!donorId && !donorEmail) return;
+
+        const params = new URLSearchParams();
+        if (donorId) params.append('donorId', donorId);
+        if (donorEmail) params.append('email', donorEmail);
+
+        const res = await fetch(`/api/donor/notifications?${params.toString()}`);
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.notifications)) {
+          const mismatch = data.notifications.find((n) => n.type === 'BLOOD_GROUP_MISMATCH');
+          if (mismatch) {
+            setMismatchAlert(mismatch);
+          }
+        }
+      } catch (e) { }
+    };
+    checkMismatchAlert();
+  }, [activeUser?.id, activeUser?._id, activeUser?.email]);
+
+  // Handler to open full medical report from separate MongoDB collection
+  const handleViewMedicalReport = async (appointmentId) => {
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}/donation-record`);
+      const data = await res.json();
+      if (res.ok && data.success && data.donationRecord) {
+        setSelectedMedicalReport(data.donationRecord);
+      } else {
+        Swal.fire({
+          icon: 'info',
+          title: 'Donation Record',
+          text: 'The medical officer is currently finalizing the clinical report for this appointment.',
+          confirmButtonColor: '#e11d48',
+        });
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Report Unavailable',
+        text: err.message || 'Could not retrieve clinical donation record.',
+        confirmButtonColor: '#e11d48',
+      });
+    }
+  };
 
   // Filtered list based on status tab
   const filteredAppointments = useMemo(() => {
@@ -244,6 +301,43 @@ export default function MyBookingsPage({ user }) {
           </button>
         </div>
       </div>
+
+      {/* Blood Group Mismatch Notice Banner if Alert Exists */}
+      {mismatchAlert && (
+        <div className="mb-6 p-4.5 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-300 rounded-3xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                  Important Medical Alert: Blood Group Verification Discrepancy
+                </span>
+                <span className="text-[10px] font-bold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">
+                  Clinical Cross-Match Notice
+                </span>
+              </div>
+              <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                {mismatchAlert.message}
+              </p>
+              {mismatchAlert.details?.verifiedBloodGroup && (
+                <p className="text-[11px] text-amber-800 mt-1 font-semibold">
+                  Lab Tested Blood Group: <strong className="text-rose-700 font-bold">{mismatchAlert.details.verifiedBloodGroup}</strong> (was registered as {mismatchAlert.details.registeredBloodGroup})
+                </p>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setSelectedMedicalReport(mismatchAlert)}
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-200 cursor-pointer shrink-0 self-start md:self-auto flex items-center gap-1.5"
+          >
+            <FileText size={14} />
+            <span>View Full Clinical Report</span>
+          </button>
+        </div>
+      )}
 
       {/* Summary KPI Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -566,7 +660,18 @@ export default function MyBookingsPage({ user }) {
                     <span>Official Voluntary Blood Donation Ticket</span>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+                    {appt.status === 'Completed' && (
+                      <button
+                        onClick={() => handleViewMedicalReport(appt._id)}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                        title="View Doctor Clinical Record & Vitals"
+                      >
+                        <HeartPulse size={13} />
+                        <span>View Medical Report</span>
+                      </button>
+                    )}
+
                     {isUpcoming && (
                       <button
                         onClick={() =>
@@ -737,6 +842,13 @@ export default function MyBookingsPage({ user }) {
           </div>
         </div>
       )}
+
+      {/* Official Clinical Donation Record & Blood Group Cross-Match Report Modal */}
+      <MedicalReportModal
+        isOpen={Boolean(selectedMedicalReport)}
+        onClose={() => setSelectedMedicalReport(null)}
+        report={selectedMedicalReport}
+      />
     </div>
   );
 }

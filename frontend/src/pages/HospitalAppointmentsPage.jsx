@@ -31,8 +31,10 @@ import {
   Clock4,
   Layers,
   ArrowLeft,
-  UserCheck
+  UserCheck,
+  Stethoscope
 } from 'lucide-react';
+import ClinicalIntakeModal from '../components/ClinicalIntakeModal';
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -64,6 +66,15 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
   const [copiedCode, setCopiedCode] = useState(null);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [staffNote, setStaffNote] = useState('');
+
+  // Doctor Clinical Intake & Blood Collection Form Modal (Separate DB Collection)
+  const [clinicalModalOpen, setClinicalModalOpen] = useState(false);
+  const [selectedForClinical, setSelectedForClinical] = useState(null);
+
+  const openClinicalIntake = (appt) => {
+    setSelectedForClinical(appt);
+    setClinicalModalOpen(true);
+  };
 
   // Fetch Appointments from API
   const fetchAppointments = async (silent = false) => {
@@ -744,10 +755,17 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                     <ShieldCheck size={12} className="text-emerald-600" />
                     <span>Eligible Donor</span>
                   </span>
-                  <div className="flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openClinicalIntake(appt);
+                    }}
+                    className="flex items-center gap-1 group-hover:translate-x-0.5 transition-transform text-red-600 font-bold hover:text-red-700 cursor-pointer"
+                  >
                     <span>Full Details</span>
                     <ChevronRight size={13} />
-                  </div>
+                  </button>
                 </div>
               </div>
             );
@@ -875,15 +893,28 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
                       {/* Action */}
                       <td className="px-5 py-3.5 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAppointment(appt);
-                          }}
-                          className="px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs"
-                        >
-                          View Details
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openClinicalIntake(appt);
+                            }}
+                            className="px-3 py-1.5 text-[11px] font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition-colors shadow-2xs cursor-pointer flex items-center gap-1"
+                          >
+                            <Stethoscope size={12} />
+                            <span>Full Details & Form</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAppointment(appt);
+                            }}
+                            className="p-1.5 text-slate-500 hover:text-slate-800 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                            title="Slip Overview"
+                          >
+                            <FileText size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1162,6 +1193,36 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                 </div>
               )}
 
+              {/* Doctor's Clinical Examination & Blood Collection Form Card (Separate Collection) */}
+              <div className="p-4 bg-gradient-to-br from-rose-50 via-red-50/50 to-white border-2 border-rose-200/90 rounded-2xl shadow-xs space-y-2.5">
+                <div className="flex items-center justify-between pb-2 border-b border-rose-100">
+                  <span className="text-xs font-black text-rose-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <Stethoscope size={15} className="text-rose-600" />
+                    <span>Doctor's Clinical Intake & Blood Collection</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-rose-700 bg-white border border-rose-200 px-2 py-0.5 rounded-full shadow-2xs">
+                    Separate DB Collection
+                  </span>
+                </div>
+                <p className="text-xs text-rose-900 leading-relaxed">
+                  {selectedAppointment.status === 'Completed'
+                    ? 'Clinical exam vitals, blood collected (mL), and laboratory blood group cross-match recorded.'
+                    : 'Record collected blood volume (mL), cross-check donor blood group for discrepancies, check vitals, and complete appointment.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => openClinicalIntake(selectedAppointment)}
+                  className="w-full py-2.5 px-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-rose-200 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Stethoscope size={14} />
+                  <span>
+                    {selectedAppointment.status === 'Completed'
+                      ? 'View / Edit Clinical Examination Record'
+                      : 'Open Blood Collection & Medical Exam Form'}
+                  </span>
+                </button>
+              </div>
+
               {/* 4. Staff Status Controls (Interactive Status Transitions) */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                 <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
@@ -1244,6 +1305,22 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
           </div>
         </>
       )}
+
+      {/* Doctor's Clinical Examination & Blood Collection Form Modal (Separate DB Collection) */}
+      <ClinicalIntakeModal
+        isOpen={clinicalModalOpen}
+        onClose={() => setClinicalModalOpen(false)}
+        appointment={selectedForClinical}
+        user={user}
+        onSuccess={(updatedAppt, donationRecord) => {
+          setAppointments((prev) =>
+            prev.map((item) => (item._id === updatedAppt._id ? updatedAppt : item))
+          );
+          if (selectedAppointment && selectedAppointment._id === updatedAppt._id) {
+            setSelectedAppointment(updatedAppt);
+          }
+        }}
+      />
     </div>
   );
 }

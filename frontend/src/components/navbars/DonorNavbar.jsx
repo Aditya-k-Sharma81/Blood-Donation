@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { HeartPulse, User, LogOut, ChevronDown, Droplets, MapPin, Calendar, ClipboardList } from 'lucide-react';
+import { HeartPulse, User, LogOut, ChevronDown, Droplets, MapPin, Calendar, ClipboardList, Bell, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import MedicalReportModal from '../MedicalReportModal';
 
 export default function DonorNavbar({ user, onLogout, autoLocation }) {
   const navigate = useNavigate();
@@ -8,17 +9,89 @@ export default function DonorNavbar({ user, onLogout, autoLocation }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  // Notification States
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const notifRef = useRef(null);
+
   const isProfilePage = location.pathname === '/profile' || location.pathname === '/donor/profile';
   const isProfileSet = Boolean(
     user?.isProfileSet ||
     (user?.phone?.trim() && (user?.lastLocation?.trim() || user?.permanentLocation?.trim() || user?.currentLocation?.trim()) && user?.bloodGroup?.trim())
   );
 
-  // Close dropdown on click outside
+  // Fetch Notifications
+  const fetchNotifications = async () => {
+    try {
+      const donorId = user?.id || user?._id || '';
+      const donorEmail = user?.email || '';
+      if (!donorId && !donorEmail) return;
+
+      const headers = {
+        'x-user-id': donorId,
+        'x-donor-id': donorId,
+        'x-user-email': donorEmail,
+      };
+      if (user?.token) {
+        headers['Authorization'] = `Bearer ${user.token}`;
+      }
+
+      const params = new URLSearchParams();
+      if (donorId) params.append('donorId', donorId);
+      if (donorEmail) params.append('email', donorEmail);
+
+      const res = await fetch(`/api/donor/notifications?${params.toString()}`, { headers });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (err) { }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 25000);
+    return () => clearInterval(interval);
+  }, [user?.id, user?._id, user?.email]);
+
+  const handleMarkRead = async (notifId, e) => {
+    if (e) e.stopPropagation();
+    try {
+      await fetch(`/api/donor/notifications/${notifId}/read`, {
+        method: 'PATCH',
+      });
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === notifId ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (err) { }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      const donorId = user?.id || user?._id || '';
+      const donorEmail = user?.email || '';
+      await fetch('/api/donor/notifications/read-all', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ donorId, donorEmail }),
+      });
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) { }
+  };
+
+  // Close dropdowns on click outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -69,6 +142,134 @@ export default function DonorNavbar({ user, onLogout, autoLocation }) {
               <ClipboardList size={13} className="text-rose-600" />
               <span>My Bookings</span>
             </Link>
+
+            {/* Notification Bell with Badge & Dropdown */}
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => setNotifDropdownOpen((prev) => !prev)}
+                className="relative p-2 rounded-xl text-slate-600 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Notifications & Medical Alerts"
+              >
+                <Bell size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-600 text-white text-[9px] font-black items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown Menu */}
+              {notifDropdownOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in duration-150">
+                  {/* Header */}
+                  <div className="px-4 py-3 bg-slate-50/80 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                      <Bell size={14} className="text-rose-600" />
+                      <span>Notifications & Alerts</span>
+                      {unreadCount > 0 && (
+                        <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 text-[10px] font-bold rounded-full">
+                          {unreadCount} new
+                        </span>
+                      )}
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllRead}
+                        className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {/* List of Notifications */}
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400">
+                        No notifications at this time.
+                      </div>
+                    ) : (
+                      notifications.map((notif) => {
+                        const isMismatch = notif.type === 'BLOOD_GROUP_MISMATCH';
+                        return (
+                          <div
+                            key={notif._id}
+                            onClick={() => {
+                              if (!notif.isRead) handleMarkRead(notif._id);
+                              if (notif.details) {
+                                setSelectedReport(notif);
+                                setNotifDropdownOpen(false);
+                              }
+                            }}
+                            className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer text-xs space-y-1.5 ${
+                              !notif.isRead
+                                ? isMismatch
+                                  ? 'bg-amber-50/60'
+                                  : 'bg-rose-50/40'
+                                : 'bg-white'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span
+                                className={`font-bold flex items-center gap-1.5 leading-snug ${
+                                  isMismatch ? 'text-amber-900' : 'text-slate-900'
+                                }`}
+                              >
+                                {isMismatch ? (
+                                  <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                                ) : (
+                                  <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                                )}
+                                <span>{notif.title}</span>
+                              </span>
+                              {!notif.isRead && (
+                                <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 mt-1"></span>
+                              )}
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
+                              {notif.message}
+                            </p>
+
+                            {isMismatch && notif.details?.verifiedBloodGroup && (
+                              <div className="p-2 bg-white rounded-lg border border-amber-200/80 text-[11px] text-amber-950 flex items-center justify-between">
+                                <span>
+                                  Verified: <strong className="text-rose-700">{notif.details.verifiedBloodGroup}</strong> (Profile was {notif.details.registeredBloodGroup})
+                                </span>
+                                <span className="text-[10px] text-amber-800 font-bold underline">
+                                  View Medical Report →
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                              <span>
+                                {new Date(notif.createdAt).toLocaleDateString([], {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              {notif.details && (
+                                <span className="text-rose-600 font-semibold hover:underline">
+                                  View Full Report
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="relative group" ref={dropdownRef}>
             <button
@@ -193,6 +394,13 @@ export default function DonorNavbar({ user, onLogout, autoLocation }) {
         </div>
       )}
     </div>
+
+    {/* Full Medical & Blood Group Cross-Match Report Modal */}
+    <MedicalReportModal
+      isOpen={Boolean(selectedReport)}
+      onClose={() => setSelectedReport(null)}
+      report={selectedReport}
+    />
     </header>
   );
 }
