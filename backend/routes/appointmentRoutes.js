@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getAvailableHospitals,
+  getHospitalStaff,
   createAppointment,
   getBookedSlots,
   getDonorAppointments,
@@ -14,6 +15,7 @@ const router = express.Router();
 // Hospitals available for blood donation
 router.get('/appointments/hospitals', getAvailableHospitals);
 router.get('/hospitals', getAvailableHospitals);
+router.get('/appointments/staff', getHospitalStaff);
 
 // Check booked time slots for a hospital on a specific date
 router.get('/appointments/booked-slots', getBookedSlots);

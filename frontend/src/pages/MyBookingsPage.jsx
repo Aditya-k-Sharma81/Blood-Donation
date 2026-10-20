@@ -22,6 +22,7 @@ import {
   Check,
   ClipboardList,
   ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
 
 export default function MyBookingsPage({ user }) {
@@ -528,6 +529,13 @@ export default function MyBookingsPage({ user }) {
                           <span className="text-slate-600 truncate">{appt.donorEmail}</span>
                         </p>
                       )}
+
+                      <p className="flex items-center gap-1.5 pt-1 border-t border-slate-100">
+                        <UserCheck size={13} className="text-rose-600 shrink-0" />
+                        <span>
+                          Medical Staff: <strong className="text-slate-800">{appt.staffName || 'Duty Staff'}</strong>
+                        </span>
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -675,6 +683,13 @@ export default function MyBookingsPage({ user }) {
                 <span className="text-slate-500 font-medium">Blood Group:</span>
                 <span className="font-extrabold text-red-600 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded-md text-sm">
                   🩸 {selectedPass.bloodGroup}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/60">
+                <span className="text-slate-500 font-medium">Assigned Medical Staff:</span>
+                <span className="font-bold text-slate-800">
+                  {selectedPass.staffName || 'Duty Medical Staff'}
                 </span>
               </div>
 

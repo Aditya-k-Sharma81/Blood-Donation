@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import {
@@ -7,16 +7,14 @@ import {
   MapPin,
   Building,
   Droplets,
-  CheckCircle2,
   Phone,
   User,
+  UserCheck,
   ArrowLeft,
-  Printer,
   RefreshCw,
   Check,
   ClipboardList,
   AlertCircle,
-  X,
   Sparkles,
 } from 'lucide-react';
 
@@ -77,13 +75,16 @@ export default function AppointmentPage({ user }) {
     hospitalAddress: '',
     hospitalCity: '',
     hospitalPhone: '',
+    staffId: '',
+    staffName: '',
+    staffEmail: '',
     appointmentDate: tomorrowStr,
     timeSlot: '',
     notes: '',
   });
 
+  const [availableStaffList, setAvailableStaffList] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [confirmedBooking, setConfirmedBooking] = useState(null);
 
   // Fetch Hospitals on mount
   useEffect(() => {
@@ -96,6 +97,10 @@ export default function AppointmentPage({ user }) {
           setHospitals(data.hospitals);
           if (data.hospitals.length > 0) {
             const first = data.hospitals[0];
+            const staffList = first.staffList || [];
+            setAvailableStaffList(staffList);
+            const firstStaff = staffList.length > 0 ? staffList[0] : null;
+
             setFormData((prev) => ({
               ...prev,
               hospitalId: first.id || '',
@@ -103,6 +108,9 @@ export default function AppointmentPage({ user }) {
               hospitalAddress: first.address || '',
               hospitalCity: first.city || '',
               hospitalPhone: first.phone || '',
+              staffId: firstStaff?.id || '',
+              staffName: firstStaff?.name || '',
+              staffEmail: firstStaff?.email || '',
             }));
           }
         }
@@ -116,41 +124,47 @@ export default function AppointmentPage({ user }) {
     fetchHospitals();
   }, []);
 
-  // Fetch booked slots whenever hospital or appointment date changes
+  // Fetch booked slots whenever hospital, staff, or appointment date changes
+  const fetchBookedSlots = useCallback(async () => {
+    if (!formData.hospitalName || !formData.appointmentDate) {
+      setBookedSlots([]);
+      return;
+    }
+
+    try {
+      setLoadingSlots(true);
+      const params = new URLSearchParams({
+        hospitalName: formData.hospitalName,
+        date: formData.appointmentDate,
+      });
+      if (formData.hospitalId) {
+        params.append('hospitalId', formData.hospitalId);
+      }
+      if (formData.staffEmail) {
+        params.append('staffEmail', formData.staffEmail);
+      }
+      if (formData.staffId) {
+        params.append('staffId', formData.staffId);
+      }
+
+      const res = await fetch(`/api/appointments/booked-slots?${params.toString()}`);
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.bookedSlots)) {
+        setBookedSlots(data.bookedSlots);
+      } else {
+        setBookedSlots([]);
+      }
+    } catch (err) {
+      console.warn('Error fetching booked slots:', err);
+      setBookedSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [formData.hospitalName, formData.appointmentDate, formData.hospitalId, formData.staffEmail, formData.staffId]);
+
   useEffect(() => {
-    const fetchBookedSlots = async () => {
-      if (!formData.hospitalName || !formData.appointmentDate) {
-        setBookedSlots([]);
-        return;
-      }
-
-      try {
-        setLoadingSlots(true);
-        const params = new URLSearchParams({
-          hospitalName: formData.hospitalName,
-          date: formData.appointmentDate,
-        });
-        if (formData.hospitalId) {
-          params.append('hospitalId', formData.hospitalId);
-        }
-
-        const res = await fetch(`/api/appointments/booked-slots?${params.toString()}`);
-        const data = await res.json();
-        if (res.ok && data.success && Array.isArray(data.bookedSlots)) {
-          setBookedSlots(data.bookedSlots);
-        } else {
-          setBookedSlots([]);
-        }
-      } catch (err) {
-        console.warn('Error fetching booked slots:', err);
-        setBookedSlots([]);
-      } finally {
-        setLoadingSlots(false);
-      }
-    };
-
     fetchBookedSlots();
-  }, [formData.hospitalName, formData.appointmentDate, formData.hospitalId]);
+  }, [fetchBookedSlots]);
 
   // Strictly filter out already booked slots so they are NOT shown to the user
   const availableSlots = useMemo(() => {
@@ -179,6 +193,10 @@ export default function AppointmentPage({ user }) {
     const selectedHospName = e.target.value;
     const hosp = hospitals.find((h) => h.hospitalName === selectedHospName);
     if (hosp) {
+      const staffList = hosp.staffList || [];
+      setAvailableStaffList(staffList);
+      const firstStaff = staffList.length > 0 ? staffList[0] : null;
+
       setFormData((prev) => ({
         ...prev,
         hospitalId: hosp.id || '',
@@ -186,11 +204,33 @@ export default function AppointmentPage({ user }) {
         hospitalAddress: hosp.address || '',
         hospitalCity: hosp.city || '',
         hospitalPhone: hosp.phone || '',
+        staffId: firstStaff?.id || '',
+        staffName: firstStaff?.name || '',
+        staffEmail: firstStaff?.email || '',
       }));
     } else {
       setFormData((prev) => ({
         ...prev,
         hospitalName: selectedHospName,
+      }));
+    }
+  };
+
+  // Handle staff select change (time slots dynamically re-check for this staff)
+  const handleStaffChange = (e) => {
+    const selectedStaffEmail = e.target.value;
+    const staff = availableStaffList.find((s) => s.email === selectedStaffEmail);
+    if (staff) {
+      setFormData((prev) => ({
+        ...prev,
+        staffId: staff.id || '',
+        staffName: staff.name || '',
+        staffEmail: staff.email || '',
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        staffEmail: selectedStaffEmail,
       }));
     }
   };
@@ -277,13 +317,29 @@ export default function AppointmentPage({ user }) {
         throw new Error(data.message || 'Failed to book appointment');
       }
 
-      setConfirmedBooking(data.appointment);
+      // Refresh booked slots so newly booked slot is excluded
+      fetchBookedSlots();
 
       Swal.fire({
         icon: 'success',
-        title: 'Appointment Booked!',
-        text: `Your ticket ref: ${data.appointment.bookingReference}`,
+        title: 'Appointment Booked Successfully!',
+        html: `Your booking reference is <strong style="color: #e11d48; font-family: monospace; font-size: 15px;">${data.appointment.bookingReference}</strong>.<br/><span style="font-size: 13px; color: #64748b; margin-top: 8px; display: block;">Your appointment is confirmed. You can view, download, or print your pass anytime in <strong>My Bookings</strong>.</span>`,
         confirmButtonColor: '#e11d48',
+        confirmButtonText: 'Go to My Bookings',
+        showCancelButton: true,
+        cancelButtonText: 'Book Another',
+        cancelButtonColor: '#64748b',
+        background: '#ffffff',
+        color: '#0f172a',
+      }).then((result) => {
+        if (result.isConfirmed) {
+          navigate('/my-bookings');
+        } else {
+          setFormData((prev) => ({
+            ...prev,
+            notes: '',
+          }));
+        }
       });
     } catch (err) {
       Swal.fire({
@@ -333,86 +389,6 @@ export default function AppointmentPage({ user }) {
           <span>My Bookings</span>
         </button>
       </div>
-
-      {/* CONFIRMED BOOKING PASS TICKET */}
-      {confirmedBooking && (
-        <div className="mb-6 p-6 bg-white border-2 border-rose-300 rounded-2xl shadow-md relative overflow-hidden animate-in fade-in">
-          <div className="flex items-start justify-between gap-4 mb-4 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
-                  Confirmed
-                </span>
-                <h2 className="text-base font-bold text-slate-900 mt-0.5">
-                  Blood Donation Appointment Pass
-                </h2>
-              </div>
-            </div>
-            <button
-              onClick={() => setConfirmedBooking(null)}
-              className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="space-y-3 bg-slate-50 p-4 rounded-xl text-xs">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
-              <span className="text-slate-500">Booking Reference:</span>
-              <span className="font-mono font-bold text-rose-600 text-sm">
-                {confirmedBooking.bookingReference}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-start pb-2 border-b border-slate-200/60">
-              <span className="text-slate-500">Hospital:</span>
-              <div className="text-right">
-                <p className="font-bold text-slate-800">{confirmedBooking.hospitalName}</p>
-                <p className="text-[11px] text-slate-400">{confirmedBooking.hospitalAddress}</p>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
-              <span className="text-slate-500">Date & Time:</span>
-              <span className="font-bold text-slate-800">
-                {new Date(confirmedBooking.appointmentDate).toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}{' '}
-                • {confirmedBooking.timeSlot}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center">
-              <span className="text-slate-500">Donor / Blood Group:</span>
-              <span className="font-bold text-slate-800">
-                {confirmedBooking.donorName} (🩸 {confirmedBooking.bloodGroup})
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2.5 mt-4">
-            <button
-              onClick={() => window.print()}
-              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <Printer size={13} /> Print Pass
-            </button>
-            <button
-              onClick={() => navigate('/my-bookings')}
-              className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <ClipboardList size={13} />
-              <span>Go to My Bookings</span>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* SIMPLE BOOKING FORM */}
       <form onSubmit={handleSubmitBooking} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
@@ -515,6 +491,42 @@ export default function AppointmentPage({ user }) {
               <MapPin size={11} /> {formData.hospitalAddress}
             </p>
           )}
+        </div>
+
+        {/* Medical Staff / Officer Selector */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700">
+              Select Medical Staff / Doctor
+            </label>
+            <span className="text-[11px] text-rose-600 font-semibold bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+              {availableStaffList.length} Available Staff
+            </span>
+          </div>
+
+          <div className="relative flex items-center">
+            <UserCheck size={15} className="absolute left-3.5 text-rose-600" />
+            <select
+              value={formData.staffEmail}
+              onChange={handleStaffChange}
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 font-semibold outline-none focus:bg-white focus:border-rose-500 cursor-pointer"
+            >
+              {availableStaffList.length === 0 ? (
+                <option value="">No Medical Staff Configured</option>
+              ) : (
+                availableStaffList.map((s) => (
+                  <option key={s.id || s.email} value={s.email}>
+                    {s.name} ({s.email}) — {s.role || 'Hospital Staff'}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+            <Clock size={11} className="text-slate-400 shrink-0" />
+            <span>Time slots below will dynamically adjust to this staff member's real-time schedule.</span>
+          </p>
         </div>
 
         {/* 1-CLICK QUICK DATE SELECTOR (Tomorrow, Day After, In 3 Days) */}

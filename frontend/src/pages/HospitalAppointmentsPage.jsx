@@ -30,7 +30,8 @@ import {
   XCircle,
   Clock4,
   Layers,
-  ArrowLeft
+  ArrowLeft,
+  UserCheck
 } from 'lucide-react';
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -76,9 +77,21 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
         params.append('scope', 'all');
       }
 
+      if (user?.email) {
+        params.append('staffEmail', user.email);
+      }
+      if (user?.id || user?._id) {
+        params.append('staffId', user?.id || user?._id);
+      }
+      if (user?.role) {
+        params.append('role', user.role);
+      }
+
       const headers = {
         'x-user-id': user?.id || user?._id || '',
         'x-hospital-id': user?.id || user?._id || '',
+        'x-user-email': user?.email || '',
+        'x-user-role': user?.role || '',
       };
       if (user?.token) {
         headers['Authorization'] = `Bearer ${user.token}`;
@@ -324,11 +337,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
         {/* Today's Appointments */}
         <div
           onClick={() => setStatusFilter(statusFilter === 'TODAY' ? 'ALL' : 'TODAY')}
-          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${
-            statusFilter === 'TODAY'
-              ? 'bg-amber-100/70 border-amber-400 ring-2 ring-amber-300'
-              : 'bg-white border-amber-200/80 hover:border-amber-300'
-          }`}
+          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${statusFilter === 'TODAY'
+            ? 'bg-amber-100/70 border-amber-400 ring-2 ring-amber-300'
+            : 'bg-white border-amber-200/80 hover:border-amber-300'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider">Today's Visits</span>
@@ -345,11 +357,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
         {/* Scheduled / Pending */}
         <div
           onClick={() => setStatusFilter(statusFilter === 'Scheduled' ? 'ALL' : 'Scheduled')}
-          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${
-            statusFilter === 'Scheduled'
-              ? 'bg-blue-100/70 border-blue-400 ring-2 ring-blue-300'
-              : 'bg-white border-blue-200/80 hover:border-blue-300'
-          }`}
+          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${statusFilter === 'Scheduled'
+            ? 'bg-blue-100/70 border-blue-400 ring-2 ring-blue-300'
+            : 'bg-white border-blue-200/80 hover:border-blue-300'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wider">Scheduled</span>
@@ -366,11 +377,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
         {/* Confirmed */}
         <div
           onClick={() => setStatusFilter(statusFilter === 'Confirmed' ? 'ALL' : 'Confirmed')}
-          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${
-            statusFilter === 'Confirmed'
-              ? 'bg-purple-100/70 border-purple-400 ring-2 ring-purple-300'
-              : 'bg-white border-purple-200/80 hover:border-purple-300'
-          }`}
+          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${statusFilter === 'Confirmed'
+            ? 'bg-purple-100/70 border-purple-400 ring-2 ring-purple-300'
+            : 'bg-white border-purple-200/80 hover:border-purple-300'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-purple-700 uppercase tracking-wider">Confirmed</span>
@@ -387,11 +397,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
         {/* Completed */}
         <div
           onClick={() => setStatusFilter(statusFilter === 'Completed' ? 'ALL' : 'Completed')}
-          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${
-            statusFilter === 'Completed'
-              ? 'bg-emerald-100/70 border-emerald-400 ring-2 ring-emerald-300'
-              : 'bg-white border-emerald-200/80 hover:border-emerald-300'
-          }`}
+          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${statusFilter === 'Completed'
+            ? 'bg-emerald-100/70 border-emerald-400 ring-2 ring-emerald-300'
+            : 'bg-white border-emerald-200/80 hover:border-emerald-300'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Completed</span>
@@ -406,6 +415,29 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
         </div>
       </div>
 
+      {/* Staff Personal Portal Banner */}
+      {user?.role === 'HOSPITAL' && (
+        <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 shadow-2xs">
+              <UserCheck size={20} />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800 text-sm">
+                Staff Portal: Your Assigned Appointments
+              </p>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Showing only blood donation bookings assigned to <strong>{user?.name || user?.email}</strong> ({user?.email})
+              </p>
+            </div>
+          </div>
+          <span className="bg-white text-rose-700 font-bold px-3 py-1.5 rounded-xl text-xs border border-rose-200 shadow-2xs self-start sm:self-auto flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+            <span>{filteredAppointments.length} Active Booking{filteredAppointments.length !== 1 ? 's' : ''}</span>
+          </span>
+        </div>
+      )}
+
       {/* Filter and Control Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -413,22 +445,20 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
             <button
               onClick={() => setStatusFilter('ALL')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === 'ALL'
-                  ? 'bg-slate-900 text-white shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'ALL'
+                ? 'bg-slate-900 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
             >
               All Active ({filteredAppointments.length})
             </button>
 
             <button
               onClick={() => setStatusFilter('TODAY')}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === 'TODAY'
-                  ? 'bg-amber-600 text-white shadow-xs font-bold'
-                  : 'text-amber-800 hover:bg-amber-50'
-              }`}
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'TODAY'
+                ? 'bg-amber-600 text-white shadow-xs font-bold'
+                : 'text-amber-800 hover:bg-amber-50'
+                }`}
             >
               <Clock4 size={12} />
               <span>Today ({metrics.todayCount})</span>
@@ -436,11 +466,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
             <button
               onClick={() => setStatusFilter('Scheduled')}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === 'Scheduled'
-                  ? 'bg-blue-600 text-white shadow-xs font-bold'
-                  : 'text-blue-700 hover:bg-blue-50'
-              }`}
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'Scheduled'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-blue-700 hover:bg-blue-50'
+                }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
               <span>Scheduled ({metrics.scheduled})</span>
@@ -448,11 +477,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
             <button
               onClick={() => setStatusFilter('Confirmed')}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === 'Confirmed'
-                  ? 'bg-purple-600 text-white shadow-xs font-bold'
-                  : 'text-purple-700 hover:bg-purple-50'
-              }`}
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'Confirmed'
+                ? 'bg-purple-600 text-white shadow-xs font-bold'
+                : 'text-purple-700 hover:bg-purple-50'
+                }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
               <span>Confirmed ({metrics.confirmed})</span>
@@ -460,11 +488,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
             <button
               onClick={() => setStatusFilter('Completed')}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === 'Completed'
-                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                  : 'text-emerald-700 hover:bg-emerald-50'
-              }`}
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'Completed'
+                ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                : 'text-emerald-700 hover:bg-emerald-50'
+                }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               <span>Completed ({metrics.completed})</span>
@@ -475,22 +502,20 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
           <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 self-start lg:self-auto shrink-0">
             <button
               onClick={() => setScopeFilter('all')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                scopeFilter === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${scopeFilter === 'all'
+                ? 'bg-white text-slate-900 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
               title="View all appointments across blood banks"
             >
               All Bookings
             </button>
             <button
               onClick={() => setScopeFilter('hospital')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                scopeFilter === 'hospital'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${scopeFilter === 'hospital'
+                ? 'bg-white text-slate-900 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
               title="Filter to this hospital only"
             >
               This Hospital Only
@@ -540,22 +565,20 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
           <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 self-end sm:self-auto shrink-0">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewMode === 'grid'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === 'grid'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
               title="Card Grid View"
             >
               <LayoutGrid size={15} />
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                viewMode === 'table'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === 'table'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
               title="Compact Table View"
             >
               <List size={15} />
@@ -604,20 +627,19 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
             const formattedDate = !isNaN(apptDateObj.getTime())
               ? apptDateObj.toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })
               : appt.appointmentDate;
 
             return (
               <div
                 key={appt._id}
                 onClick={() => setSelectedAppointment(appt)}
-                className={`bg-white border rounded-2xl p-5 shadow-xs hover:border-red-300 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group ${
-                  selectedAppointment?._id === appt._id ? 'border-red-500 ring-2 ring-red-100' : 'border-slate-200'
-                }`}
+                className={`bg-white border rounded-2xl p-5 shadow-xs hover:border-red-300 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group ${selectedAppointment?._id === appt._id ? 'border-red-500 ring-2 ring-red-100' : 'border-slate-200'
+                  }`}
               >
                 <div>
                   {/* Top: Booking Reference & Status Badge */}
@@ -702,6 +724,13 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                       </span>
                     </div>
 
+                    {/* Assigned Staff */}
+                    <div className="text-[11px] text-slate-600 truncate pt-1 border-t border-slate-200/50 flex items-center gap-1.5">
+                      <UserCheck size={12} className="text-rose-600 shrink-0" />
+                      <span className="font-semibold text-slate-800">{appt.staffName || 'Duty Staff'}</span>
+                      {appt.staffEmail && <span className="text-slate-400 font-mono text-[10px]">({appt.staffEmail})</span>}
+                    </div>
+
                     <div className="text-[11px] text-slate-500 truncate pt-1 border-t border-slate-200/50 flex items-center gap-1">
                       <Building size={11} className="text-slate-400 shrink-0" />
                       <span className="truncate">{appt.hospitalName}</span>
@@ -734,6 +763,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                   <th className="px-5 py-3.5">Reference & Date</th>
                   <th className="px-5 py-3.5">Donor Profile</th>
                   <th className="px-5 py-3.5">Blood Group</th>
+                  <th className="px-5 py-3.5">Assigned Staff</th>
                   <th className="px-5 py-3.5">Center Venue</th>
                   <th className="px-5 py-3.5">Status</th>
                   <th className="px-5 py-3.5 text-right">Actions</th>
@@ -749,10 +779,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
                   const formattedDate = !isNaN(apptDateObj.getTime())
                     ? apptDateObj.toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                      })
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    })
                     : appt.appointmentDate;
 
                   return (
@@ -789,6 +819,23 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 font-extrabold text-xs shadow-2xs">
                           🩸 {appt.bloodGroup}
                         </span>
+                      </td>
+
+                      {/* Assigned Staff */}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-1.5">
+                          <UserCheck size={14} className="text-rose-600 shrink-0" />
+                          <div>
+                            <span className="font-bold text-slate-900 block text-xs">
+                              {appt.staffName || 'Duty Staff'}
+                            </span>
+                            {appt.staffEmail && (
+                              <span className="text-[10px] text-slate-500 block font-mono">
+                                {appt.staffEmail}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Hospital Venue */}
@@ -1017,6 +1064,32 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                 </div>
               </div>
 
+              {/* Assigned Medical Staff Card */}
+              <div className="p-4 bg-rose-50/60 border border-rose-200 rounded-2xl shadow-xs space-y-2.5">
+                <div className="flex items-center justify-between pb-2 border-b border-rose-100">
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <UserCheck size={14} className="text-rose-600" />
+                    <span>Assigned Medical Staff</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-rose-700 bg-rose-100/70 border border-rose-200 px-2.5 py-0.5 rounded-full">
+                    Consulting Officer
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-sm font-bold text-slate-900 block">
+                      {selectedAppointment.staffName || 'Duty Medical Staff'}
+                    </span>
+                    <span className="text-slate-500 text-[11px] block font-mono mt-0.5">
+                      {selectedAppointment.staffEmail || 'staff@hospital.org'}
+                    </span>
+                  </div>
+                  <div className="w-9 h-9 rounded-xl bg-white border border-rose-200 flex items-center justify-center text-rose-600 shadow-2xs">
+                    <UserCheck size={16} />
+                  </div>
+                </div>
+              </div>
+
               {/* 2. Schedule & Hospital Venue Card */}
               <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -1100,11 +1173,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                   <button
                     onClick={() => handleUpdateStatus(selectedAppointment._id, 'Confirmed')}
                     disabled={updatingStatusId === selectedAppointment._id || selectedAppointment.status === 'Confirmed'}
-                    className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
-                      selectedAppointment.status === 'Confirmed'
-                        ? 'bg-purple-100 text-purple-800 border border-purple-200 opacity-60 cursor-not-allowed'
-                        : 'bg-purple-600 hover:bg-purple-700 text-white'
-                    }`}
+                    className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${selectedAppointment.status === 'Confirmed'
+                      ? 'bg-purple-100 text-purple-800 border border-purple-200 opacity-60 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                      }`}
                   >
                     <CheckSquare size={13} />
                     <span>Confirm Slot</span>
@@ -1114,11 +1186,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                   <button
                     onClick={() => handleUpdateStatus(selectedAppointment._id, 'Completed')}
                     disabled={updatingStatusId === selectedAppointment._id || selectedAppointment.status === 'Completed'}
-                    className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
-                      selectedAppointment.status === 'Completed'
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 opacity-60 cursor-not-allowed'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    }`}
+                    className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${selectedAppointment.status === 'Completed'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 opacity-60 cursor-not-allowed'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      }`}
                   >
                     <CheckCircle2 size={13} />
                     <span>Mark Completed</span>

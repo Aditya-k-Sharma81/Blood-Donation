@@ -136,7 +136,7 @@ const verifyDonorToken = async (req) => {
             return { donorId: donor._id };
           }
         }
-      } catch (err) {}
+      } catch (err) { }
     }
   }
 
@@ -159,7 +159,7 @@ const verifyDonorToken = async (req) => {
       if (donor && (!donor.role || donor.role.toUpperCase() === 'DONOR')) {
         return { donorId: donor._id };
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (donorEmail) {
@@ -168,7 +168,7 @@ const verifyDonorToken = async (req) => {
       if (donor && (!donor.role || donor.role.toUpperCase() === 'DONOR')) {
         return { donorId: donor._id };
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Final fallback: If there is a donor, allow access
@@ -284,16 +284,9 @@ export const updateDonorProfile = async (req, res) => {
 
     const locationVal = lastLocation !== undefined ? lastLocation : currentLocation;
     if (locationVal !== undefined) donor.lastLocation = locationVal.trim();
-
-    const permLoc = (permanentLocation !== undefined ? permanentLocation : (address || '')).trim();
-    const addrVal = (address !== undefined && address.trim()) ? address.trim() : permLoc;
-
-    if (permanentLocation !== undefined || address !== undefined) {
-      donor.permanentLocation = permLoc;
-      donor.address = addrVal;
-    }
-
+    if (permanentLocation !== undefined) donor.permanentLocation = permanentLocation.trim();
     if (city !== undefined) donor.city = city.trim();
+    if (address !== undefined) donor.address = address.trim();
     if (latitude !== undefined) donor.latitude = latitude !== null ? Number(latitude) : null;
     if (longitude !== undefined) donor.longitude = longitude !== null ? Number(longitude) : null;
     if (profilePic !== undefined) donor.profilePic = profilePic.trim();
@@ -306,7 +299,7 @@ export const updateDonorProfile = async (req, res) => {
     if (lastDonationDate !== undefined) donor.lastDonationDate = lastDonationDate ? new Date(lastDonationDate) : null;
 
     donor.isProfileSet = Boolean(
-      donor.phone?.trim() && (donor.lastLocation?.trim() || donor.permanentLocation?.trim() || donor.address?.trim()) && donor.bloodGroup?.trim()
+      donor.phone?.trim() && (donor.lastLocation?.trim() || donor.permanentLocation?.trim()) && donor.bloodGroup?.trim()
     );
 
     await donor.save();
@@ -1166,7 +1159,7 @@ export const deleteStaff = async (req, res) => {
         { 'hospitals.loginEmail': staff.email },
         { $pull: { hospitals: { loginEmail: staff.email } } }
       );
-    } catch (e) {}
+    } catch (e) { }
 
     res.status(200).json({
       success: true,

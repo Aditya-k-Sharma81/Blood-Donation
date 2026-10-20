@@ -1,6 +1,7 @@
 import Appointment from '../models/Appointment.js';
 import Donor from '../models/Donor.js';
 import Admin from '../models/Admin.js';
+import HospitalUser from '../models/HospitalUser.js';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'blood_donation_secret_key_123';
@@ -50,26 +51,38 @@ const authenticateDonor = async (req) => {
   return { error: 'Please login as a Donor to manage and view your blood donation appointments.', status: 401 };
 };
 
-// @desc    Get List of Available Donation Hospitals & Blood Banks
+// @desc    Get List of Available Donation Hospitals & Blood Banks (including assigned Medical Staff)
 // @route   GET /api/appointments/hospitals
 // @access  Public / Donor
 export const getAvailableHospitals = async (req, res) => {
   try {
     const admins = await Admin.find().select('name hospitalName phone city address hospitals licenseNumber');
+    const hospitalUsers = await HospitalUser.find({ isPermitted: true }).select('name email hospitalName role isPermitted');
 
     const hospitalList = [];
 
     admins.forEach((admin) => {
       // Primary hospital under admin profile
       if (admin.hospitalName?.trim()) {
+        const hName = admin.hospitalName.trim();
+        const matchedStaff = hospitalUsers.filter(
+          (u) => u.hospitalName && u.hospitalName.trim().toLowerCase() === hName.toLowerCase()
+        );
+
         hospitalList.push({
           id: admin._id,
-          hospitalName: admin.hospitalName.trim(),
+          hospitalName: hName,
           address: admin.address?.trim() || 'Central Healthcare Complex',
           city: admin.city?.trim() || 'City Center',
           phone: admin.phone?.trim() || '9876543210',
           licenseNumber: admin.licenseNumber?.trim() || 'REG-HOSP-01',
           category: 'Blood Bank & Multispecialty Hospital',
+          staffList: matchedStaff.map((s) => ({
+            id: s._id,
+            name: s.name,
+            email: s.email,
+            role: s.role || 'Hospital Staff',
+          })),
         });
       }
 
@@ -77,14 +90,27 @@ export const getAvailableHospitals = async (req, res) => {
       if (Array.isArray(admin.hospitals)) {
         admin.hospitals.forEach((h) => {
           if (h.hospitalName?.trim() && !hospitalList.some((item) => item.hospitalName === h.hospitalName)) {
+            const hName = h.hospitalName.trim();
+            const matchedStaff = hospitalUsers.filter(
+              (u) =>
+                (u.hospitalName && u.hospitalName.trim().toLowerCase() === hName.toLowerCase()) ||
+                (h.loginEmail && u.email && u.email.toLowerCase() === h.loginEmail.toLowerCase())
+            );
+
             hospitalList.push({
               id: h._id || admin._id,
-              hospitalName: h.hospitalName.trim(),
+              hospitalName: hName,
               address: h.address?.trim() || 'Blood Collection Center',
               city: h.city?.trim() || 'Medical City',
               phone: h.phone?.trim() || '011-23456789',
               licenseNumber: h.licenseNumber?.trim() || 'REG-DL-847474',
               category: 'Authorized Blood Bank',
+              staffList: matchedStaff.map((s) => ({
+                id: s._id,
+                name: s.name,
+                email: s.email,
+                role: s.role || 'Hospital Staff',
+              })),
             });
           }
         });
@@ -101,8 +127,37 @@ export const getAvailableHospitals = async (req, res) => {
         phone: '+91 99054 65626',
         licenseNumber: 'REG-CENTRAL-001',
         category: 'Regional Blood Transfusion Center',
+        staffList: hospitalUsers.map((s) => ({
+          id: s._id,
+          name: s.name,
+          email: s.email,
+          role: s.role || 'Hospital Staff',
+        })),
       });
     }
+
+    // Ensure every hospital has at least 1 staff member available
+    hospitalList.forEach((h) => {
+      if (!h.staffList || h.staffList.length === 0) {
+        if (hospitalUsers.length > 0) {
+          h.staffList = hospitalUsers.map((s) => ({
+            id: s._id,
+            name: s.name,
+            email: s.email,
+            role: s.role || 'Hospital Staff',
+          }));
+        } else {
+          h.staffList = [
+            {
+              id: 'duty-staff-1',
+              name: 'Dr. Duty Medical Officer',
+              email: 'staff@gmail.com',
+              role: 'Blood Bank In-Charge',
+            },
+          ];
+        }
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -111,6 +166,36 @@ export const getAvailableHospitals = async (req, res) => {
   } catch (error) {
     console.error('Get Available Hospitals Error:', error);
     res.status(500).json({ success: false, message: 'Server error retrieving donation centers.' });
+  }
+};
+
+// @desc    Get List of Staff for a Specific Hospital
+// @route   GET /api/appointments/staff
+// @access  Public / Donor
+export const getHospitalStaff = async (req, res) => {
+  try {
+    const { hospitalName } = req.query;
+    const filter = { isPermitted: true };
+    if (hospitalName && hospitalName.trim()) {
+      filter.hospitalName = new RegExp(`^${hospitalName.trim()}$`, 'i');
+    }
+    let staff = await HospitalUser.find(filter).select('name email hospitalName role');
+    if (staff.length === 0) {
+      staff = await HospitalUser.find({ isPermitted: true }).select('name email hospitalName role');
+    }
+    res.status(200).json({
+      success: true,
+      staff: staff.map((s) => ({
+        id: s._id,
+        name: s.name,
+        email: s.email,
+        hospitalName: s.hospitalName,
+        role: s.role || 'Hospital Staff',
+      })),
+    });
+  } catch (error) {
+    console.error('Get Hospital Staff Error:', error);
+    res.status(500).json({ success: false, message: 'Server error retrieving staff.' });
   }
 };
 
@@ -138,6 +223,9 @@ export const createAppointment = async (req, res) => {
       timeSlot,
       donationType,
       notes,
+      staffId,
+      staffName,
+      staffEmail,
     } = req.body;
 
     if (!hospitalName || !appointmentDate || !timeSlot) {
@@ -173,18 +261,31 @@ export const createAppointment = async (req, res) => {
     const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-    // Check if slot is already booked for this hospital
-    const existingBooking = await Appointment.findOne({
-      hospitalName: hospitalName.trim(),
-      appointmentDate: { $gte: startOfDay, $lte: endOfDay },
-      timeSlot: timeSlot.trim(),
-      status: { $ne: 'Cancelled' },
-    });
+    // Check if slot is already booked for this hospital and staff member
+    const conflictConditions = [
+      { hospitalName: hospitalName.trim() },
+      { appointmentDate: { $gte: startOfDay, $lte: endOfDay } },
+      { timeSlot: timeSlot.trim() },
+      { status: { $ne: 'Cancelled' } },
+    ];
+
+    if (staffEmail && staffEmail.trim()) {
+      conflictConditions.push({
+        $or: [
+          { staffEmail: staffEmail.toLowerCase().trim() },
+          ...(staffId && staffId.length === 24 ? [{ staffId }] : []),
+        ],
+      });
+    }
+
+    const existingBooking = await Appointment.findOne({ $and: conflictConditions });
 
     if (existingBooking) {
       return res.status(409).json({
         success: false,
-        message: `The time slot "${timeSlot.trim()}" is already booked for ${hospitalName.trim()} on ${rawDateStr}. Please choose an available time slot.`,
+        message: `The time slot "${timeSlot.trim()}" is already booked with ${
+          staffName ? staffName.trim() : 'this staff member'
+        } on ${rawDateStr}. Please choose an available time slot or different staff.`,
       });
     }
 
@@ -232,6 +333,9 @@ export const createAppointment = async (req, res) => {
       hospitalAddress: (hospitalAddress || 'Main Blood Bank Wing').trim(),
       hospitalCity: (hospitalCity || donor.city || '').trim(),
       hospitalPhone: (hospitalPhone || '').trim(),
+      staffId: staffId && staffId.length === 24 ? staffId : null,
+      staffName: (staffName || '').trim(),
+      staffEmail: (staffEmail || '').toLowerCase().trim(),
       appointmentDate: startOfDay,
       timeSlot: timeSlot.trim(),
       donationType: donationType || 'Blood Donation',
@@ -251,12 +355,12 @@ export const createAppointment = async (req, res) => {
   }
 };
 
-// @desc    Get Booked Time Slots for a Hospital on a Specific Date
+// @desc    Get Booked Time Slots for a Hospital and Selected Staff on a Specific Date
 // @route   GET /api/appointments/booked-slots
 // @access  Public / Donor
 export const getBookedSlots = async (req, res) => {
   try {
-    const { hospitalName, hospitalId, date } = req.query;
+    const { hospitalName, hospitalId, date, staffId, staffEmail } = req.query;
 
     if (!date) {
       return res.status(400).json({ success: false, message: 'Date parameter is required.' });
@@ -269,21 +373,37 @@ export const getBookedSlots = async (req, res) => {
     const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-    const filter = {
-      appointmentDate: { $gte: startOfDay, $lte: endOfDay },
-      status: { $ne: 'Cancelled' },
-    };
+    const conditions = [
+      { appointmentDate: { $gte: startOfDay, $lte: endOfDay } },
+      { status: { $ne: 'Cancelled' } },
+    ];
 
     if (hospitalId && hospitalId.length === 24) {
-      filter.$or = [
-        { hospitalId },
-        ...(hospitalName ? [{ hospitalName: hospitalName.trim() }] : []),
-      ];
+      conditions.push({
+        $or: [
+          { hospitalId },
+          ...(hospitalName ? [{ hospitalName: hospitalName.trim() }] : []),
+        ],
+      });
     } else if (hospitalName) {
-      filter.hospitalName = hospitalName.trim();
+      conditions.push({ hospitalName: hospitalName.trim() });
     }
 
-    const appointments = await Appointment.find(filter).select('timeSlot hospitalName appointmentDate status');
+    // When staff is selected: filter booked slots specifically for this staff member
+    if (staffEmail && staffEmail.trim()) {
+      const cleanEmail = staffEmail.toLowerCase().trim();
+      const staffOr = [{ staffEmail: cleanEmail }];
+      if (staffId && staffId.length === 24) {
+        staffOr.push({ staffId });
+      }
+      conditions.push({ $or: staffOr });
+    } else if (staffId && staffId.length === 24) {
+      conditions.push({ staffId });
+    }
+
+    const appointments = await Appointment.find({ $and: conditions }).select(
+      'timeSlot hospitalName appointmentDate status staffEmail staffId'
+    );
 
     const bookedSlots = [...new Set(appointments.map((a) => a.timeSlot.trim()))];
 
@@ -291,6 +411,7 @@ export const getBookedSlots = async (req, res) => {
       success: true,
       date: rawDateStr,
       hospitalName: hospitalName || '',
+      staffEmail: staffEmail || '',
       bookedSlots,
       count: bookedSlots.length,
     });
@@ -301,8 +422,6 @@ export const getBookedSlots = async (req, res) => {
 };
 
 // @desc    Get All Appointments for the Logged-in Donor
-// @route   GET /api/appointments/my
-// @desc    Get All Appointments for the Logged-in Donor (shows all details: Cancelled, Scheduled, Confirmed, Completed)
 // @route   GET /api/appointments/my
 // @access  Donor (Protected)
 export const getDonorAppointments = async (req, res) => {
@@ -316,7 +435,6 @@ export const getDonorAppointments = async (req, res) => {
     const donorEmail = auth.donor?.email ? auth.donor.email.toLowerCase().trim() : '';
 
     // STRICT MATCH: Only return appointments belonging to this specific logged-in donor
-    // Returns ALL statuses: Scheduled, Confirmed, Completed, Cancelled
     const queryConditions = [{ donorId: donorId }];
     if (donorEmail) {
       queryConditions.push({ donorEmail: donorEmail });
@@ -394,68 +512,97 @@ export const cancelAppointment = async (req, res) => {
   }
 };
 
-// @desc    Get All Appointments (Admin / Hospital staff overview)
+// @desc    Get All Appointments (Admin / Hospital staff overview with staff-level isolation)
 // @route   GET /api/appointments or GET /api/hospital/appointments
 // @access  Hospital / Admin
 export const getAllAppointments = async (req, res) => {
   try {
-    const { hospitalName, hospitalId, status, bloodGroup, search, scope } = req.query;
+    const { hospitalName, hospitalId, status, bloodGroup, search, scope, staffId, staffEmail, role } = req.query;
 
-    const filter = {};
+    const conditions = [];
 
-    // Filter by Hospital if specified and not 'ALL'
+    // Identify user identity and permissions
+    const reqEmail = (
+      staffEmail ||
+      req.headers['x-staff-email'] ||
+      req.headers['x-user-email'] ||
+      ''
+    ).toLowerCase().trim();
+    const reqId = staffId || req.headers['x-staff-id'] || req.headers['x-user-id'];
+    const reqRole = (role || req.headers['x-user-role'] || '').toUpperCase();
+
+    // Check if caller is a hospital staff member (vs Admin)
+    let isHospitalStaff = reqRole === 'HOSPITAL' || reqRole === 'STAFF';
+    if (!isHospitalStaff && reqRole !== 'ADMIN' && reqEmail) {
+      const hUser = await HospitalUser.findOne({ email: reqEmail });
+      if (hUser) isHospitalStaff = true;
+    }
+
+    // 1. Filter by Status: Exclude Cancelled by default
+    if (status && status.trim() && status.toUpperCase() !== 'ALL') {
+      conditions.push({ status: status.trim() });
+    } else {
+      conditions.push({ status: { $ne: 'Cancelled' } });
+    }
+
+    // 2. STAFF LEVEL ISOLATION:
+    // If the requester is a Hospital Staff member, show ONLY appointments booked with this staff member!
+    if (isHospitalStaff && reqRole !== 'ADMIN' && reqEmail) {
+      const staffMatches = [{ staffEmail: reqEmail }];
+      if (reqId && reqId.length === 24) {
+        staffMatches.push({ staffId: reqId });
+      }
+      conditions.push({ $or: staffMatches });
+    } else if (staffEmail && staffEmail.trim()) {
+      // If Admin is filtering by a specific staff member
+      conditions.push({ staffEmail: staffEmail.toLowerCase().trim() });
+    }
+
+    // 3. Filter by Hospital if specified and not 'ALL'
     if (scope !== 'all' && hospitalName && hospitalName.trim() && hospitalName.toUpperCase() !== 'ALL') {
       const cleanHosp = hospitalName.trim();
       const escaped = cleanHosp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const conditions = [
-        { hospitalName: { $regex: escaped, $options: 'i' } }
+      const hospConditions = [
+        { hospitalName: { $regex: escaped, $options: 'i' } },
       ];
       if (hospitalId && hospitalId.length === 24) {
-        conditions.push({ hospitalId });
+        hospConditions.push({ hospitalId });
       }
-      filter.$or = conditions;
+      conditions.push({ $or: hospConditions });
     }
 
-    // Filter by Status: Exclude Cancelled by default so only non-cancelled appointments show in hospital
-    if (status && status.trim() && status.toUpperCase() !== 'ALL') {
-      filter.status = status.trim();
-    } else {
-      filter.status = { $ne: 'Cancelled' };
-    }
-
-    // Filter by Blood Group
+    // 4. Filter by Blood Group
     if (bloodGroup && bloodGroup.trim() && bloodGroup.toUpperCase() !== 'ALL') {
-      filter.bloodGroup = bloodGroup.trim();
+      conditions.push({ bloodGroup: bloodGroup.trim() });
     }
 
-    // Filter by Search Query
+    // 5. Filter by Search Query
     if (search && search.trim()) {
       const q = search.trim();
       const searchRegex = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-      const searchConditions = [
-        { donorName: searchRegex },
-        { donorEmail: searchRegex },
-        { donorPhone: searchRegex },
-        { bookingReference: searchRegex },
-        { hospitalName: searchRegex },
-        { notes: searchRegex },
-      ];
-      if (filter.$or) {
-        filter.$and = [
-          { $or: filter.$or },
-          { $or: searchConditions },
-        ];
-        delete filter.$or;
-      } else {
-        filter.$or = searchConditions;
-      }
+      conditions.push({
+        $or: [
+          { donorName: searchRegex },
+          { donorEmail: searchRegex },
+          { donorPhone: searchRegex },
+          { bookingReference: searchRegex },
+          { hospitalName: searchRegex },
+          { staffName: searchRegex },
+          { staffEmail: searchRegex },
+          { notes: searchRegex },
+        ],
+      });
     }
 
-    const appointments = await Appointment.find(filter).sort({ appointmentDate: -1, createdAt: -1 });
+    const filterQuery = conditions.length > 0 ? { $and: conditions } : {};
+    const appointments = await Appointment.find(filterQuery).sort({ appointmentDate: -1, createdAt: -1 });
 
-    // Compute metrics
-    const allAppointments = await Appointment.find();
-    const activeAppointments = allAppointments.filter((a) => a.status !== 'Cancelled');
+    // Compute metrics scoped specifically for this view
+    const baseMetricsFilter = isHospitalStaff && reqRole !== 'ADMIN' && reqEmail
+      ? { $or: [{ staffEmail: reqEmail }, ...(reqId && reqId.length === 24 ? [{ staffId: reqId }] : [])] }
+      : {};
+    const scopedAppointments = await Appointment.find(baseMetricsFilter);
+    const activeAppointments = scopedAppointments.filter((a) => a.status !== 'Cancelled');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -463,10 +610,10 @@ export const getAllAppointments = async (req, res) => {
 
     const metrics = {
       total: activeAppointments.length,
-      scheduled: allAppointments.filter((a) => a.status === 'Scheduled').length,
-      confirmed: allAppointments.filter((a) => a.status === 'Confirmed').length,
-      completed: allAppointments.filter((a) => a.status === 'Completed').length,
-      cancelled: allAppointments.filter((a) => a.status === 'Cancelled').length,
+      scheduled: scopedAppointments.filter((a) => a.status === 'Scheduled').length,
+      confirmed: scopedAppointments.filter((a) => a.status === 'Confirmed').length,
+      completed: scopedAppointments.filter((a) => a.status === 'Completed').length,
+      cancelled: scopedAppointments.filter((a) => a.status === 'Cancelled').length,
       todayCount: activeAppointments.filter((a) => {
         const d = new Date(a.appointmentDate);
         return d >= today && d < tomorrow;
