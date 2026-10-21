@@ -2,6 +2,9 @@ import BloodStock from '../models/BloodStock.js';
 import Admin from '../models/Admin.js';
 import HospitalUser from '../models/HospitalUser.js';
 import Donor from '../models/Donor.js';
+import DonationRecord from '../models/DonationRecord.js';
+import Notification from '../models/Notification.js';
+import EmergencyRequest from '../models/EmergencyRequest.js';
 
 const ALL_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
@@ -424,12 +427,55 @@ export const getNearbyDonors = async (req, res) => {
           latitude: donor.latitude,
           longitude: donor.longitude,
           lastLocationUpdate: donor.lastLocationUpdate,
+          lastDonationDate: donor.lastDonationDate || null,
           isAvailable: donor.isAvailable !== false,
           emergencyContact: donor.emergencyContact || '',
           profilePic: donor.profilePic || '',
           distanceKm: Number(dist.toFixed(2)),
           distanceMeters: Math.round(dist * 1000),
         });
+      }
+    }
+
+    // Check donation records for all donors within radius to verify 90-day cooldown
+    const donorIds = donorsWithinRadius.map((d) => d._id);
+    const donationRecords = await DonationRecord.find({ donorId: { $in: donorIds } }).sort({ donationDate: -1 });
+
+    const latestDonationByDonor = new Map();
+    for (const rec of donationRecords) {
+      if (rec.donorId && rec.donationDate && !latestDonationByDonor.has(rec.donorId.toString())) {
+        latestDonationByDonor.set(rec.donorId.toString(), new Date(rec.donationDate));
+      }
+    }
+
+    const now = Date.now();
+    for (const d of donorsWithinRadius) {
+      const recDate = latestDonationByDonor.get(d._id.toString());
+      const profileDate = d.lastDonationDate ? new Date(d.lastDonationDate) : null;
+
+      let effectiveLastDonation = null;
+      if (recDate && profileDate) {
+        effectiveLastDonation = recDate > profileDate ? recDate : profileDate;
+      } else {
+        effectiveLastDonation = recDate || profileDate || null;
+      }
+
+      if (effectiveLastDonation && !isNaN(effectiveLastDonation.getTime())) {
+        const diffDays = Math.floor((now - effectiveLastDonation.getTime()) / (1000 * 60 * 60 * 24));
+        d.lastDonationDate = effectiveLastDonation;
+        d.daysSinceLastDonation = diffDays;
+        d.isEligibleForDonation = diffDays >= 90;
+        d.daysUntilEligible = diffDays >= 90 ? 0 : 90 - diffDays;
+
+        const nextEligible = new Date(effectiveLastDonation);
+        nextEligible.setDate(nextEligible.getDate() + 90);
+        d.nextEligibleDate = nextEligible;
+      } else {
+        d.lastDonationDate = null;
+        d.daysSinceLastDonation = null;
+        d.isEligibleForDonation = true;
+        d.daysUntilEligible = 0;
+        d.nextEligibleDate = null;
       }
     }
 
@@ -455,6 +501,167 @@ export const getNearbyDonors = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve donors within radius.',
+    });
+  }
+};
+
+/**
+ * @desc    Send emergency blood request to selected donors within radius (strictly requires 90+ days since last donation)
+ * @route   POST /api/hospital/send-emergency-request
+ * @access  Hospital Staff / Admin
+ */
+export const sendEmergencyRequest = async (req, res) => {
+  try {
+    const { donorIds, bloodGroup, urgency = 'CRITICAL', message, contactPhone, radiusKm = 5 } = req.body;
+
+    if (!Array.isArray(donorIds) || donorIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please select at least one donor to send the emergency request.',
+      });
+    }
+
+    const hospitalInfo = await resolveHospitalInfo(req);
+    const hospitalLat = hospitalInfo.latitude;
+    const hospitalLng = hospitalInfo.longitude;
+    const hospitalPhone =
+      (contactPhone || hospitalInfo.admin?.phone || hospitalInfo.admin?.emergencyContact || '').trim();
+
+    // Fetch the target donors from DB
+    const donors = await Donor.find({ _id: { $in: donorIds } });
+
+    // Fetch clinical donation records for these donors
+    const donationRecords = await DonationRecord.find({ donorId: { $in: donorIds } }).sort({ donationDate: -1 });
+    const latestDonationByDonor = new Map();
+    for (const rec of donationRecords) {
+      if (rec.donorId && rec.donationDate && !latestDonationByDonor.has(rec.donorId.toString())) {
+        latestDonationByDonor.set(rec.donorId.toString(), new Date(rec.donationDate));
+      }
+    }
+
+    const now = Date.now();
+    const eligibleDonors = [];
+    const ineligibleDonors = [];
+    const notificationsToCreate = [];
+
+    for (const donor of donors) {
+      const recDate = latestDonationByDonor.get(donor._id.toString());
+      const profileDate = donor.lastDonationDate ? new Date(donor.lastDonationDate) : null;
+
+      let effectiveLastDonation = null;
+      if (recDate && profileDate) {
+        effectiveLastDonation = recDate > profileDate ? recDate : profileDate;
+      } else {
+        effectiveLastDonation = recDate || profileDate || null;
+      }
+
+      // Check 90 days eligibility rule
+      if (effectiveLastDonation && !isNaN(effectiveLastDonation.getTime())) {
+        const diffDays = Math.floor((now - effectiveLastDonation.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays < 90) {
+          ineligibleDonors.push({
+            donorId: donor._id,
+            name: donor.name,
+            email: donor.email,
+            daysSinceLastDonation: diffDays,
+            daysUntilEligible: 90 - diffDays,
+            reason: `Donated ${diffDays} days ago. Mandatory 90-day cooldown in effect (Eligible in ${90 - diffDays} days).`,
+          });
+          continue; // Strict: Do NOT send request to ineligible donors
+        }
+      }
+
+      // Calculate distance if coordinates available
+      let dist = 0;
+      if (
+        hospitalLat !== null &&
+        hospitalLng !== null &&
+        donor.latitude !== null &&
+        donor.longitude !== null
+      ) {
+        dist = Number(
+          calculateDistanceKm(hospitalLat, hospitalLng, donor.latitude, donor.longitude).toFixed(2)
+        );
+      }
+
+      eligibleDonors.push({
+        donorId: donor._id,
+        donorName: donor.name,
+        donorEmail: donor.email,
+        donorPhone: donor.phone || '',
+        distanceKm: dist,
+        lastDonationDate: effectiveLastDonation,
+        status: 'SENT',
+        sentAt: new Date(),
+      });
+
+      const effectiveGroup = bloodGroup && bloodGroup !== 'ALL' ? bloodGroup : donor.bloodGroup || 'Blood';
+      const defaultMsg = `Emergency: Urgent ${effectiveGroup} blood required immediately at ${hospitalInfo.hospitalName}. Please report to the hospital or contact ${hospitalPhone || 'the staff'} if you can donate.`;
+
+      notificationsToCreate.push({
+        recipientId: donor._id,
+        recipientEmail: donor.email,
+        type: 'EMERGENCY_REQUEST',
+        severity: 'critical',
+        title: `🚨 Emergency: Urgent ${effectiveGroup} Blood Needed`,
+        message: message && message.trim() ? message.trim() : defaultMsg,
+        details: {
+          hospitalName: hospitalInfo.hospitalName,
+          hospitalLocation: hospitalInfo.locationName || hospitalInfo.address || '',
+          contactPhone: hospitalPhone,
+          requiredBloodGroup: effectiveGroup,
+          urgency: urgency || 'CRITICAL',
+          distanceKm: dist,
+          donationDate: new Date(),
+        },
+      });
+    }
+
+    if (eligibleDonors.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: `None of the selected donors are eligible to donate. All ${ineligibleDonors.length} selected donor(s) donated within the last 90 days.`,
+        sentCount: 0,
+        ineligibleCount: ineligibleDonors.length,
+        ineligibleDonors,
+      });
+    }
+
+    // Bulk create notifications for all eligible donors
+    await Notification.insertMany(notificationsToCreate);
+
+    // Create EmergencyRequest audit log
+    const emergencyReq = await EmergencyRequest.create({
+      hospitalId: hospitalInfo.hospitalUserId || hospitalInfo.admin?._id || null,
+      hospitalName: hospitalInfo.hospitalName,
+      hospitalLocation: hospitalInfo.locationName || hospitalInfo.address || '',
+      hospitalPhone,
+      bloodGroup: bloodGroup || 'ANY',
+      urgency: urgency || 'CRITICAL',
+      message: message || `Urgent blood request dispatched to ${eligibleDonors.length} nearby donors.`,
+      radiusKm: Number(radiusKm) || 5,
+      targetedDonorCount: eligibleDonors.length,
+      recipients: eligibleDonors,
+      status: 'ACTIVE',
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Emergency request successfully sent to ${eligibleDonors.length} eligible donor(s)!${
+        ineligibleDonors.length > 0
+          ? ` (${ineligibleDonors.length} donor(s) were excluded because they donated within the last 90 days).`
+          : ''
+      }`,
+      sentCount: eligibleDonors.length,
+      ineligibleCount: ineligibleDonors.length,
+      ineligibleDonors,
+      requestId: emergencyReq._id,
+    });
+  } catch (error) {
+    console.error('Send Emergency Request Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send emergency blood request.',
     });
   }
 };

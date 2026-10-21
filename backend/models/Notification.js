@@ -23,7 +23,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['BLOOD_GROUP_MISMATCH', 'DONATION_COMPLETED', 'APPOINTMENT_CONFIRMED', 'GENERAL'],
+      enum: ['BLOOD_GROUP_MISMATCH', 'DONATION_COMPLETED', 'APPOINTMENT_CONFIRMED', 'EMERGENCY_REQUEST', 'GENERAL'],
       default: 'GENERAL',
     },
     severity: {
@@ -61,6 +61,13 @@ const notificationSchema = new mongoose.Schema(
       donationDate: Date,
       nextEligibleDate: Date,
       medicalRemarks: String,
+      // Emergency Request Fields
+      requestId: String,
+      requiredBloodGroup: String,
+      urgency: String,
+      contactPhone: String,
+      hospitalLocation: String,
+      distanceKm: Number,
     },
     isRead: {
       type: Boolean,

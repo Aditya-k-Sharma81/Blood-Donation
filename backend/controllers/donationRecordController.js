@@ -187,6 +187,8 @@ export const recordDonation = async (req, res) => {
         const donor = await Donor.findById(appointment.donorId);
         if (donor) {
           donor.bloodGroup = verifiedBloodGroup.trim();
+          donor.lastDonationDate = validDonDate;
+          donor.totalDonations = (donor.totalDonations || 0) + 1;
           await donor.save();
         }
       } catch (e) { }
@@ -216,6 +218,16 @@ export const recordDonation = async (req, res) => {
           medicalRemarks: recordData.medicalRemarks,
         },
       });
+
+      // Sync lastDonationDate and totalDonations on donor profile
+      try {
+        const donor = await Donor.findById(appointment.donorId);
+        if (donor) {
+          donor.lastDonationDate = validDonDate;
+          donor.totalDonations = (donor.totalDonations || 0) + 1;
+          await donor.save();
+        }
+      } catch (e) { }
     }
 
     res.status(201).json({

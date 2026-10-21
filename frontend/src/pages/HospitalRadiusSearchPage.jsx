@@ -9,6 +9,14 @@ import {
   LocateFixed,
   Calendar,
   Layers,
+  Send,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldCheck,
+  X,
+  Phone,
+  Clock,
+  AlertCircle,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -23,6 +31,16 @@ export default function HospitalRadiusSearchPage({ user, onLogout }) {
   const [donorBloodFilter, setDonorBloodFilter] = useState('ALL');
   const [donorSearchQuery, setDonorSearchQuery] = useState('');
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
+
+  // Checkbox Selection for Emergency Request
+  const [selectedDonorIds, setSelectedDonorIds] = useState([]);
+
+  // Emergency Request Modal State
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestUrgency, setRequestUrgency] = useState('CRITICAL');
+  const [requestMessage, setRequestMessage] = useState('');
+  const [requestPhone, setRequestPhone] = useState(user?.phone || user?.emergencyContact || '');
+  const [sendingRequest, setSendingRequest] = useState(false);
 
   // Fetch Nearby Donors based on Hospital Permanent Location & Selected Radius
   const fetchNearbyDonors = async (radius = selectedRadius, silent = false) => {
@@ -97,6 +115,127 @@ export default function HospitalRadiusSearchPage({ user, onLogout }) {
       return true;
     });
   }, [nearbyDonors, donorBloodFilter, donorSearchQuery]);
+
+  // Eligible donors from the filtered list (90-day cooldown verified)
+  const eligibleDonors = useMemo(() => {
+    return filteredNearbyDonors.filter((d) => d.isEligibleForDonation !== false);
+  }, [filteredNearbyDonors]);
+
+  const isAllEligibleSelected = useMemo(() => {
+    if (eligibleDonors.length === 0) return false;
+    return eligibleDonors.every((d) => selectedDonorIds.includes(d._id || d.id));
+  }, [eligibleDonors, selectedDonorIds]);
+
+  const handleToggleSelectAll = () => {
+    if (isAllEligibleSelected) {
+      setSelectedDonorIds([]);
+    } else {
+      setSelectedDonorIds(eligibleDonors.map((d) => d._id || d.id));
+    }
+  };
+
+  const handleToggleDonor = (donorId, isEligible, daysSince, daysLeft) => {
+    if (!isEligible) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Donor Ineligible (90-Day Cooldown)',
+        html: `<div class="text-left text-xs space-y-1.5 text-slate-700">
+          <p>This donor donated <strong>${daysSince ?? 0} days ago</strong>.</p>
+          <p>Under medical regulations, voluntary donors must complete at least a <strong>90-day cooldown period</strong> before donating again.</p>
+          <p class="text-red-600 font-bold mt-2">Cooldown remaining: ${daysLeft ?? 90} day(s)</p>
+        </div>`,
+        confirmButtonColor: '#e11d48',
+      });
+      return;
+    }
+    setSelectedDonorIds((prev) =>
+      prev.includes(donorId) ? prev.filter((id) => id !== donorId) : [...prev, donorId]
+    );
+  };
+
+  const handleOpenRequestModal = () => {
+    if (selectedDonorIds.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Select Donors',
+        text: 'Please select one or more eligible donors using the checkboxes on the left side of the list.',
+        confirmButtonColor: '#e11d48',
+      });
+      return;
+    }
+    const bgText = donorBloodFilter !== 'ALL' ? `${donorBloodFilter} ` : '';
+    setRequestMessage(
+      `Emergency: Urgent ${bgText}blood replenishment required at ${hospitalName}. Registered voluntary donors are requested to contact or visit the hospital emergency department as soon as possible.`
+    );
+    if (!requestPhone) {
+      setRequestPhone(user?.phone || user?.emergencyContact || '');
+    }
+    setIsRequestModalOpen(true);
+  };
+
+  const handleSendEmergencyRequest = async (e) => {
+    if (e) e.preventDefault();
+    if (selectedDonorIds.length === 0) return;
+
+    try {
+      setSendingRequest(true);
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-user-id': user?.id || user?._id || '',
+        'x-hospital-id': user?.id || user?._id || '',
+      };
+      if (user?.token) headers['Authorization'] = `Bearer ${user.token}`;
+
+      const payload = {
+        donorIds: selectedDonorIds,
+        hospitalName,
+        bloodGroup: donorBloodFilter !== 'ALL' ? donorBloodFilter : '',
+        urgency: requestUrgency,
+        message: requestMessage,
+        contactPhone: requestPhone,
+        radiusKm: selectedRadius,
+      };
+
+      const res = await fetch('/api/hospital/send-emergency-request', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setIsRequestModalOpen(false);
+        const count = data.sentCount || selectedDonorIds.length;
+        setSelectedDonorIds([]);
+        Swal.fire({
+          icon: 'success',
+          title: 'Emergency Request Dispatched!',
+          html: `<div class="text-left text-xs space-y-2 text-slate-700">
+            <p>Urgent notifications have been sent to <strong>${count} eligible voluntary donor(s)</strong> within <strong>${selectedRadius} km</strong>.</p>
+            ${
+              data.ineligibleCount > 0
+                ? `<p class="text-amber-700 font-semibold">⚠️ ${data.ineligibleCount} donor(s) were excluded because they donated within the last 90 days.</p>`
+                : ''
+            }
+          </div>`,
+          confirmButtonColor: '#10b981',
+        });
+      } else {
+        throw new Error(data.message || 'Failed to dispatch emergency request');
+      }
+    } catch (err) {
+      console.error('Send Emergency Request Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Dispatch Failed',
+        text: err.message || 'Could not send emergency request to donors.',
+        confirmButtonColor: '#e11d48',
+      });
+    } finally {
+      setSendingRequest(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-6xl my-4 space-y-6 self-start">
@@ -338,89 +477,397 @@ export default function HospitalRadiusSearchPage({ user, onLogout }) {
           </div>
         </div>
       ) : (
-        /* TABLE VIEW OF DONORS */
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="px-5 py-3">Donor Name</th>
-                  <th className="px-5 py-3">Blood Group</th>
-                  <th className="px-5 py-3">Distance</th>
-                  <th className="px-5 py-3">Last Recorded Location</th>
-                  <th className="px-5 py-3">Contact Number</th>
-                  <th className="px-5 py-3">Email</th>
-                  <th className="px-5 py-3">Availability</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                {filteredNearbyDonors.map((donor) => (
-                  <tr key={donor._id || donor.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        {donor.profilePic ? (
-                          <img
-                            src={donor.profilePic}
-                            alt={donor.name}
-                            className="w-8 h-8 rounded-lg object-cover border border-slate-200"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-red-600 text-white font-bold text-xs flex items-center justify-center">
-                            {(donor.name || 'D').charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <div>
-                          <span className="font-bold text-slate-900 block">{donor.name}</span>
-                          <span className="text-[10px] text-slate-400">Voluntary Donor</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 font-extrabold text-xs">
-                        {donor.bloodGroup || '—'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="font-bold text-red-700 bg-red-50/80 px-2.5 py-1 rounded-lg border border-red-100">
-                        {donor.distanceKm < 1
-                          ? `${donor.distanceMeters || Math.round(donor.distanceKm * 1000)} m`
-                          : `${donor.distanceKm} km`}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 max-w-xs">
-                      <span className="truncate block" title={donor.lastLocation}>
-                        {donor.lastLocation || donor.city || '—'}
-                      </span>
-                      {donor.lastLocationUpdate && (
-                        <span className="text-[10px] text-slate-400 block mt-0.5">
-                          {new Date(donor.lastLocationUpdate).toLocaleDateString()}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 font-medium">
-                      {donor.phone ? (
-                        <a href={`tel:${donor.phone}`} className="hover:text-red-600">
-                          {donor.phone}
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-600">
-                      <a href={`mailto:${donor.email}`} className="hover:text-red-600">
-                        {donor.email}
-                      </a>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        <span>Available</span>
-                      </span>
-                    </td>
+        <div className="space-y-4">
+          {/* Emergency Outreach Action Toolbar */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shrink-0 shadow-xs">
+                <Radio className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                    Emergency Blood Outreach Dispatch
+                  </h4>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <ShieldCheck size={11} className="text-emerald-600" />
+                    <span>90-Day Cooldown Protection Active</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {selectedDonorIds.length === 0 ? (
+                    <span>
+                      Check the boxes on the left to select voluntary donors who can be sent an urgent emergency blood request.
+                    </span>
+                  ) : (
+                    <span>
+                      <strong className="text-red-700 font-extrabold">{selectedDonorIds.length}</strong> eligible donor{selectedDonorIds.length > 1 ? 's' : ''} currently selected for immediate emergency dispatch.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+              {selectedDonorIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDonorIds([])}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                >
+                  Clear Selection
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleOpenRequestModal}
+                disabled={selectedDonorIds.length === 0}
+                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer ${
+                  selectedDonorIds.length > 0
+                    ? 'bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/25'
+                    : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                }`}
+                title={selectedDonorIds.length === 0 ? 'Select donors using the checkboxes to send request' : 'Send emergency request to selected donors'}
+              >
+                <Send size={13} className={selectedDonorIds.length > 0 ? 'animate-bounce' : ''} />
+                <span>Send Emergency Request {selectedDonorIds.length > 0 ? `(${selectedDonorIds.length})` : ''}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* TABLE VIEW OF DONORS */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="px-3 py-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllEligibleSelected}
+                        onChange={handleToggleSelectAll}
+                        disabled={eligibleDonors.length === 0}
+                        title={eligibleDonors.length === 0 ? 'No eligible donors to select' : 'Select all eligible donors'}
+                        className="w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                      />
+                    </th>
+                    <th className="px-5 py-3">Donor Name</th>
+                    <th className="px-5 py-3">Blood Group</th>
+                    <th className="px-5 py-3">Distance</th>
+                    <th className="px-5 py-3">Last Recorded Location</th>
+                    <th className="px-5 py-3">90-Day Eligibility</th>
+                    <th className="px-5 py-3">Contact Number</th>
+                    <th className="px-5 py-3">Email</th>
+                    <th className="px-5 py-3">Availability</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                  {filteredNearbyDonors.map((donor) => {
+                    const donorId = donor._id || donor.id;
+                    const isEligible = donor.isEligibleForDonation !== false;
+                    const isSelected = selectedDonorIds.includes(donorId);
+
+                    return (
+                      <tr
+                        key={donorId}
+                        className={`transition-colors ${
+                          isSelected
+                            ? 'bg-red-50/60'
+                            : !isEligible
+                            ? 'bg-slate-50/40 opacity-80'
+                            : 'hover:bg-slate-50/80'
+                        }`}
+                      >
+                        {/* Checkbox Column */}
+                        <td className="px-3 py-3.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() =>
+                              handleToggleDonor(
+                                donorId,
+                                isEligible,
+                                donor.daysSinceLastDonation,
+                                donor.daysUntilEligible
+                              )
+                            }
+                            disabled={!isEligible}
+                            title={
+                              !isEligible
+                                ? `Cannot select: Donated ${donor.daysSinceLastDonation ?? 0} days ago. Mandatory 90-day cooldown active (${donor.daysUntilEligible ?? 90} days remaining).`
+                                : isSelected
+                                ? 'Click to deselect donor'
+                                : 'Select donor for emergency request'
+                            }
+                            className={`w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500 ${
+                              isEligible
+                                ? 'cursor-pointer'
+                                : 'opacity-25 cursor-not-allowed'
+                            }`}
+                          />
+                        </td>
+
+                        {/* Donor Name Column */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            {donor.profilePic ? (
+                              <img
+                                src={donor.profilePic}
+                                alt={donor.name}
+                                className="w-8 h-8 rounded-lg object-cover border border-slate-200"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-red-600 text-white font-bold text-xs flex items-center justify-center">
+                                {(donor.name || 'D').charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div>
+                              <span className="font-bold text-slate-900 block">{donor.name}</span>
+                              <span className="text-[10px] text-slate-400">Voluntary Donor</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Blood Group Column */}
+                        <td className="px-5 py-3.5">
+                          <span className="px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 font-extrabold text-xs">
+                            {donor.bloodGroup || '—'}
+                          </span>
+                        </td>
+
+                        {/* Distance Column */}
+                        <td className="px-5 py-3.5">
+                          <span className="font-bold text-red-700 bg-red-50/80 px-2.5 py-1 rounded-lg border border-red-100">
+                            {donor.distanceKm < 1
+                              ? `${donor.distanceMeters || Math.round(donor.distanceKm * 1000)} m`
+                              : `${donor.distanceKm} km`}
+                          </span>
+                        </td>
+
+                        {/* Last Recorded Location Column */}
+                        <td className="px-5 py-3.5 max-w-xs">
+                          <span className="truncate block" title={donor.lastLocation}>
+                            {donor.lastLocation || donor.city || '—'}
+                          </span>
+                          {donor.lastLocationUpdate && (
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              {new Date(donor.lastLocationUpdate).toLocaleDateString()}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 90-Day Eligibility Column */}
+                        <td className="px-5 py-3.5">
+                          {isEligible ? (
+                            <div className="flex flex-col items-start gap-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 size={11} className="text-emerald-600" />
+                                <span>Eligible</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {donor.daysSinceLastDonation !== null && donor.daysSinceLastDonation !== undefined
+                                  ? `Donated ${donor.daysSinceLastDonation}d ago (≥90d)`
+                                  : 'No prior donation record'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-start gap-0.5">
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                                title={`Must wait ${donor.daysUntilEligible} more day(s) before next eligible donation`}
+                              >
+                                <AlertTriangle size={11} className="text-amber-600" />
+                                <span>Cooldown: {donor.daysUntilEligible}d left</span>
+                              </span>
+                              <span className="text-[10px] text-amber-700">
+                                Donated {donor.daysSinceLastDonation}d ago
+                              </span>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Contact Column */}
+                        <td className="px-5 py-3.5 font-medium">
+                          {donor.phone ? (
+                            <a href={`tel:${donor.phone}`} className="hover:text-red-600">
+                              {donor.phone}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+
+                        {/* Email Column */}
+                        <td className="px-5 py-3.5 text-slate-600">
+                          <a href={`mailto:${donor.email}`} className="hover:text-red-600">
+                            {donor.email}
+                          </a>
+                        </td>
+
+                        {/* Availability Column */}
+                        <td className="px-5 py-3.5">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span>Available</span>
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Emergency Request Modal */}
+      {isRequestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shadow-xs">
+                  <Radio size={20} className="animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Send Emergency Blood Request
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Dispatch urgent alerts to nearby voluntary donors
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => !sendingRequest && setIsRequestModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Recipients Summary Pill */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">Targeted Donors:</span>
+                <span className="font-bold text-red-600 bg-red-50 px-2.5 py-0.5 rounded-full border border-red-100">
+                  {selectedDonorIds.length} Eligible Donor(s)
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">Search Radius:</span>
+                <span className="font-semibold text-slate-800">{selectedRadius} km from {hospitalName}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">Requested Blood Group:</span>
+                <span className="font-bold text-slate-900">
+                  {donorBloodFilter === 'ALL' ? 'Any Blood Group / Selected Donors' : donorBloodFilter}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium pt-1 border-t border-slate-200/60">
+                <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
+                <span>All selected recipients have satisfied the mandatory 90-day cooldown safety requirement.</span>
+              </div>
+            </div>
+
+            {/* Form Fields */}
+            <form onSubmit={handleSendEmergencyRequest} className="space-y-4">
+              {/* Urgency Level */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Urgency Level
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'CRITICAL', label: 'Critical', sub: 'Immediate', color: 'border-red-300 text-red-700 bg-red-50' },
+                    { id: 'URGENT', label: 'Urgent', sub: '< 2 Hours', color: 'border-amber-300 text-amber-800 bg-amber-50' },
+                    { id: 'MODERATE', label: 'Moderate', sub: 'Today', color: 'border-blue-300 text-blue-700 bg-blue-50' },
+                  ].map((lvl) => (
+                    <button
+                      key={lvl.id}
+                      type="button"
+                      onClick={() => setRequestUrgency(lvl.id)}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        requestUrgency === lvl.id
+                          ? `${lvl.color} font-bold shadow-xs ring-2 ring-red-500/20`
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-white'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">{lvl.label}</span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5">{lvl.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Emergency Message */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Emergency Message to Donors
+                </label>
+                <textarea
+                  rows={3}
+                  value={requestMessage}
+                  onChange={(e) => setRequestMessage(e.target.value)}
+                  placeholder="Enter details about the emergency blood need..."
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none text-slate-800 placeholder:text-slate-400 resize-none font-medium"
+                  required
+                />
+              </div>
+
+              {/* Contact Phone */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Hospital Contact Phone for Donors
+                </label>
+                <div className="relative">
+                  <Phone size={14} className="absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="tel"
+                    value={requestPhone}
+                    onChange={(e) => setRequestPhone(e.target.value)}
+                    placeholder="e.g. +91 9876543210"
+                    className="w-full text-xs pl-8 pr-3 py-2.5 rounded-xl border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none font-medium text-slate-800 placeholder:text-slate-400"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsRequestModalOpen(false)}
+                  disabled={sendingRequest}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={sendingRequest || selectedDonorIds.length === 0}
+                  className="flex items-center gap-1.5 px-5 py-2 text-xs font-extrabold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sendingRequest ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Transmitting Alerts...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={14} />
+                      <span>Dispatch to {selectedDonorIds.length} Donor(s)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

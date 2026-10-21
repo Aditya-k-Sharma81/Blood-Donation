@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { HeartPulse, User, LogOut, ChevronDown, Droplets, MapPin, Calendar, ClipboardList, Bell, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { HeartPulse, User, LogOut, ChevronDown, Droplets, MapPin, Calendar, ClipboardList, Bell, AlertTriangle, CheckCircle2, Radio, Phone } from 'lucide-react';
 import MedicalReportModal from '../MedicalReportModal';
 
 export default function DonorNavbar({ user, onLogout, autoLocation }) {
@@ -196,31 +196,42 @@ export default function DonorNavbar({ user, onLogout, autoLocation }) {
                     ) : (
                       notifications.map((notif) => {
                         const isMismatch = notif.type === 'BLOOD_GROUP_MISMATCH';
+                        const isEmergency = notif.type === 'EMERGENCY_REQUEST';
                         return (
                           <div
                             key={notif._id}
                             onClick={() => {
                               if (!notif.isRead) handleMarkRead(notif._id);
-                              if (notif.details) {
+                              if (notif.details && !isEmergency) {
                                 setSelectedReport(notif);
                                 setNotifDropdownOpen(false);
                               }
                             }}
                             className={`p-3.5 hover:bg-slate-50 transition-colors cursor-pointer text-xs space-y-1.5 ${
                               !notif.isRead
-                                ? isMismatch
+                                ? isEmergency
+                                  ? 'bg-red-50/90 border-l-4 border-l-red-600'
+                                  : isMismatch
                                   ? 'bg-amber-50/60'
                                   : 'bg-rose-50/40'
+                                : isEmergency
+                                ? 'bg-red-50/30'
                                 : 'bg-white'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <span
                                 className={`font-bold flex items-center gap-1.5 leading-snug ${
-                                  isMismatch ? 'text-amber-900' : 'text-slate-900'
+                                  isEmergency
+                                    ? 'text-red-900'
+                                    : isMismatch
+                                    ? 'text-amber-900'
+                                    : 'text-slate-900'
                                 }`}
                               >
-                                {isMismatch ? (
+                                {isEmergency ? (
+                                  <Radio size={14} className="text-red-600 animate-pulse shrink-0" />
+                                ) : isMismatch ? (
                                   <AlertTriangle size={14} className="text-amber-600 shrink-0" />
                                 ) : (
                                   <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
@@ -228,13 +239,29 @@ export default function DonorNavbar({ user, onLogout, autoLocation }) {
                                 <span>{notif.title}</span>
                               </span>
                               {!notif.isRead && (
-                                <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 mt-1"></span>
+                                <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 mt-1 animate-ping"></span>
                               )}
                             </div>
 
                             <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
                               {notif.message}
                             </p>
+
+                            {isEmergency && notif.details?.contactPhone && (
+                              <div className="p-2 bg-white rounded-lg border border-red-200 text-[11px] text-red-950 flex items-center justify-between">
+                                <span>
+                                  Hospital: <strong className="text-red-700">{notif.details.hospitalName || 'Emergency Desk'}</strong>
+                                </span>
+                                <a
+                                  href={`tel:${notif.details.contactPhone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[10px] text-white bg-red-600 hover:bg-red-700 font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs"
+                                >
+                                  <Phone size={10} />
+                                  <span>Call {notif.details.contactPhone}</span>
+                                </a>
+                              </div>
+                            )}
 
                             {isMismatch && notif.details?.verifiedBloodGroup && (
                               <div className="p-2 bg-white rounded-lg border border-amber-200/80 text-[11px] text-amber-950 flex items-center justify-between">
