@@ -9,6 +9,7 @@ import DonorPage from './pages/DonorPage';
 import AdminPage from './pages/AdminPage';
 import HospitalPage from './pages/HospitalPage';
 import HospitalAppointmentsPage from './pages/HospitalAppointmentsPage';
+import HospitalRadiusSearchPage from './pages/HospitalRadiusSearchPage';
 import HospitalSignUpPage from './pages/HospitalSignUpPage';
 import AdminProfilePage from './pages/AdminProfilePage';
 import StaffManagementPage from './pages/StaffManagementPage';
@@ -259,6 +260,28 @@ export default function App() {
               element={
                 loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
                   <HospitalAppointmentsPage user={loggedInUser} onLogout={handleLogout} />
+                ) : (
+                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            />
+
+            {/* /hospital/radius-search and /hospital/emergency-donors -> Dedicated Radius Donor Search Page */}
+            <Route
+              path="/hospital/radius-search"
+              element={
+                loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
+                  <HospitalRadiusSearchPage user={loggedInUser} onLogout={handleLogout} />
+                ) : (
+                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            />
+            <Route
+              path="/hospital/emergency-donors"
+              element={
+                loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
+                  <HospitalRadiusSearchPage user={loggedInUser} onLogout={handleLogout} />
                 ) : (
                   <HospitalLogin onLoginSuccess={handleLoginSuccess} />
                 )

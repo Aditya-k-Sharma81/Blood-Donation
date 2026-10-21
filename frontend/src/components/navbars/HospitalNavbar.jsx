@@ -1,13 +1,16 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Building2, LogOut, Droplets, Calendar, Layers } from 'lucide-react';
+import { Building2, LogOut, Droplets, Calendar, Layers, Radio } from 'lucide-react';
 
 export default function HospitalNavbar({ user, onLogout }) {
   const hospitalName = user?.hospitalName || user?.name || 'City Central Hospital';
   const location = useLocation();
 
   const isAppointments = location.pathname.startsWith('/hospital/appointment');
-  const isStock = location.pathname === '/hospital' && !isAppointments;
+  const isRadiusSearch =
+    location.pathname.startsWith('/hospital/radius') ||
+    location.pathname.startsWith('/hospital/emergency');
+  const isStock = location.pathname === '/hospital' && !isAppointments && !isRadiusSearch;
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-6 py-3 bg-white border-b border-slate-200 shadow-xs">
@@ -47,6 +50,19 @@ export default function HospitalNavbar({ user, onLogout }) {
           >
             <Calendar size={14} className={isAppointments ? 'text-white' : 'text-slate-400'} />
             <span>Appointments</span>
+          </Link>
+
+          <Link
+            to="/hospital/radius-search"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              isRadiusSearch
+                ? 'bg-red-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+            title="Find donors within 5km, 10km, 15km radius of hospital"
+          >
+            <Radio size={14} className={isRadiusSearch ? 'text-white animate-pulse' : 'text-red-600'} />
+            <span>Radius Search</span>
           </Link>
         </nav>
       </div>

@@ -1,8 +1,26 @@
 import BloodStock from '../models/BloodStock.js';
 import Admin from '../models/Admin.js';
 import HospitalUser from '../models/HospitalUser.js';
+import Donor from '../models/Donor.js';
 
 const ALL_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+
+/**
+ * Calculate distance between two coordinates using Haversine formula (km)
+ */
+export const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
 
 /**
  * Determine stock status based on clinical rules:
@@ -51,7 +69,7 @@ const resolveAdmin = async (req) => {
 };
 
 /**
- * Resolve hospital and admin details
+ * Resolve hospital and admin details including permanent geographic coordinates
  */
 const resolveHospitalInfo = async (req) => {
   const admin = await resolveAdmin(req);
@@ -60,10 +78,46 @@ const resolveHospitalInfo = async (req) => {
     admin?.hospitalName?.trim() ||
     'City Central Hospital';
 
+  let latitude = admin?.latitude ?? null;
+  let longitude = admin?.longitude ?? null;
+  let locationName = admin?.locationName || admin?.city || '';
+  let address = admin?.address || '';
+  let city = admin?.city || '';
+
+  if (admin && admin.hospitals && admin.hospitals.length > 0) {
+    const matched = admin.hospitals.find(
+      (h) =>
+        (h.hospitalName && h.hospitalName.toLowerCase() === hospitalName.toLowerCase()) ||
+        (req.headers['x-user-id'] && h.hospitalUserId?.toString() === req.headers['x-user-id'])
+    );
+    if (matched) {
+      if (matched.latitude !== null && matched.latitude !== undefined) latitude = matched.latitude;
+      if (matched.longitude !== null && matched.longitude !== undefined) longitude = matched.longitude;
+      if (matched.locationName) locationName = matched.locationName;
+      if (matched.address) address = matched.address;
+      if (matched.city) city = matched.city;
+    }
+  }
+
+  // Query parameter override if explicitly provided
+  if (req.query?.latitude && req.query?.longitude) {
+    const lat = Number(req.query.latitude);
+    const lng = Number(req.query.longitude);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      latitude = lat;
+      longitude = lng;
+    }
+  }
+
   return {
     admin,
     hospitalUserId: admin ? admin._id : null,
     hospitalName,
+    latitude,
+    longitude,
+    locationName,
+    address,
+    city,
   };
 };
 
@@ -303,5 +357,104 @@ export const resetBloodStock = async (req, res) => {
   } catch (error) {
     console.error('Reset Blood Stock Error:', error);
     res.status(500).json({ success: false, message: 'Failed to reset blood stock in database.' });
+  }
+};
+
+// @desc    Get donors within specified radius (5km, 10km, 15km) from permanent hospital location
+// @route   GET /api/hospital/nearby-donors
+// @access  Hospital Staff / Admin
+export const getNearbyDonors = async (req, res) => {
+  try {
+    const hospitalInfo = await resolveHospitalInfo(req);
+
+    const hospitalLat = hospitalInfo.latitude;
+    const hospitalLng = hospitalInfo.longitude;
+
+    if (hospitalLat === null || hospitalLng === null || hospitalLat === undefined || hospitalLng === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Permanent hospital location is not set. Please configure hospital coordinates in Admin Profile.',
+        hospitalLocation: {
+          hospitalName: hospitalInfo.hospitalName,
+          locationName: hospitalInfo.locationName || '',
+          latitude: null,
+          longitude: null,
+        },
+        donors: [],
+      });
+    }
+
+    const radius = Number(req.query.radius) || 5;
+    const bloodGroup = (req.query.bloodGroup || '').trim();
+
+    // Query all registered donors who have stored coordinates
+    const donors = await Donor.find({
+      latitude: { $ne: null, $exists: true },
+      longitude: { $ne: null, $exists: true },
+    }).select('-password');
+
+    const donorsWithinRadius = [];
+
+    for (const donor of donors) {
+      if (typeof donor.latitude !== 'number' || typeof donor.longitude !== 'number') continue;
+      if (isNaN(donor.latitude) || isNaN(donor.longitude)) continue;
+
+      if (bloodGroup && bloodGroup !== 'ALL' && donor.bloodGroup !== bloodGroup) {
+        continue;
+      }
+
+      const dist = calculateDistanceKm(
+        hospitalLat,
+        hospitalLng,
+        donor.latitude,
+        donor.longitude
+      );
+
+      if (dist <= radius) {
+        donorsWithinRadius.push({
+          _id: donor._id,
+          id: donor._id,
+          name: donor.name,
+          email: donor.email,
+          phone: donor.phone || '',
+          bloodGroup: donor.bloodGroup || '',
+          lastLocation: donor.lastLocation || donor.city || 'Location unavailable',
+          permanentLocation: donor.permanentLocation || '',
+          city: donor.city || '',
+          latitude: donor.latitude,
+          longitude: donor.longitude,
+          lastLocationUpdate: donor.lastLocationUpdate,
+          isAvailable: donor.isAvailable !== false,
+          emergencyContact: donor.emergencyContact || '',
+          profilePic: donor.profilePic || '',
+          distanceKm: Number(dist.toFixed(2)),
+          distanceMeters: Math.round(dist * 1000),
+        });
+      }
+    }
+
+    // Sort ascending by distance (nearest first)
+    donorsWithinRadius.sort((a, b) => a.distanceKm - b.distanceKm);
+
+    return res.status(200).json({
+      success: true,
+      radius,
+      totalCount: donorsWithinRadius.length,
+      hospitalLocation: {
+        hospitalName: hospitalInfo.hospitalName,
+        locationName: hospitalInfo.locationName || '',
+        address: hospitalInfo.address || '',
+        city: hospitalInfo.city || '',
+        latitude: hospitalLat,
+        longitude: hospitalLng,
+      },
+      donors: donorsWithinRadius,
+    });
+  } catch (error) {
+    console.error('Get Nearby Donors Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve donors within radius.',
+    });
   }
 };

@@ -19,6 +19,13 @@ import {
   Save,
   RotateCcw,
   Calendar,
+  MapPin,
+  Radio,
+  Phone,
+  Mail,
+  Navigation,
+  LocateFixed,
+  Users,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -104,7 +111,6 @@ export default function HospitalPage({ user, onLogout }) {
   useEffect(() => {
     fetchStockData();
   }, [user]);
-
 
   // Open Edit Modal for exact unit count per volume
   const handleOpenEdit = (stockItem) => {
@@ -250,6 +256,8 @@ export default function HospitalPage({ user, onLogout }) {
   // Critical groups summary list
   const criticalGroups = stocks.filter((s) => s.status === 'CRITICAL').map((s) => s.bloodGroup);
 
+
+
   return (
     <div className="w-full max-w-6xl my-4 space-y-6 self-start">
       {/* Hospital Staff Header Banner */}
@@ -287,6 +295,15 @@ export default function HospitalPage({ user, onLogout }) {
             <span>Appointments</span>
           </Link>
 
+          <Link
+            to="/hospital/radius-search"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-all cursor-pointer shadow-xs"
+            title="Find donors within 5km, 10km, 15km radius of hospital"
+          >
+            <Radio size={14} className="text-red-600" />
+            <span>Radius Search</span>
+          </Link>
+
           <button
             onClick={() => fetchStockData()}
             disabled={loading}
@@ -322,12 +339,21 @@ export default function HospitalPage({ user, onLogout }) {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setFilterStatus('CRITICAL')}
-            className="shrink-0 text-xs font-semibold text-red-700 hover:text-red-800 bg-white border border-red-200 px-3 py-1.5 rounded-lg shadow-xs hover:bg-red-50 cursor-pointer"
-          >
-            View Critical ({criticalGroups.length})
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setFilterStatus('CRITICAL')}
+              className="text-xs font-semibold text-red-700 hover:text-red-800 bg-white border border-red-200 px-3 py-1.5 rounded-lg shadow-xs hover:bg-red-50 cursor-pointer"
+            >
+              View Critical ({criticalGroups.length})
+            </button>
+            <Link
+              to="/hospital/radius-search"
+              className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5"
+            >
+              <Radio size={13} className="animate-pulse" />
+              <span>Radius Search</span>
+            </Link>
+          </div>
         </div>
       )}
 
