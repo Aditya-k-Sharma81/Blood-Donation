@@ -6,6 +6,7 @@ import DonationRecord from '../models/DonationRecord.js';
 import Notification from '../models/Notification.js';
 import EmergencyRequest from '../models/EmergencyRequest.js';
 import BloodIssue from '../models/BloodIssue.js';
+import EmergencyDonation from '../models/EmergencyDonation.js';
 
 const ALL_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
@@ -864,4 +865,464 @@ export const getBloodIssueHistory = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Get emergency requests targeted to a specific donor
+ * @route   GET /api/donor/emergency-requests
+ * @access  Donor
+ */
+export const getDonorEmergencyRequests = async (req, res) => {
+  try {
+    const donorId =
+      req.headers['x-user-id'] ||
+      req.headers['x-donor-id'] ||
+      req.query.donorId ||
+      req.user?.id ||
+      req.user?._id;
+    const donorEmail = (
+      req.headers['x-user-email'] ||
+      req.query.email ||
+      req.user?.email ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+    if (!donorId && !donorEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Donor identification required.',
+      });
+    }
+
+    const query = {
+      $or: [
+        ...(donorId ? [{ 'recipients.donorId': donorId }] : []),
+        ...(donorEmail ? [{ 'recipients.donorEmail': donorEmail }] : []),
+      ],
+    };
+
+    const requests = await EmergencyRequest.find(query)
+      .sort({ createdAt: -1 })
+      .limit(60);
+
+    // Format requests to reflect this specific donor's response
+    const formatted = requests.map((reqDoc) => {
+      const recipient = reqDoc.recipients.find(
+        (r) =>
+          (donorId && r.donorId?.toString() === donorId.toString()) ||
+          (donorEmail && r.donorEmail?.toLowerCase() === donorEmail)
+      );
+
+      return {
+        _id: reqDoc._id,
+        hospitalId: reqDoc.hospitalId,
+        hospitalName: reqDoc.hospitalName,
+        hospitalLocation: reqDoc.hospitalLocation,
+        hospitalPhone: reqDoc.hospitalPhone,
+        bloodGroup: reqDoc.bloodGroup,
+        urgency: reqDoc.urgency,
+        message: reqDoc.message,
+        radiusKm: reqDoc.radiusKm,
+        status: reqDoc.status, // 'ACTIVE' | 'FULFILLED' | 'CANCELLED'
+        donatedDonorId: reqDoc.donatedDonorId,
+        donatedDonorName: reqDoc.donatedDonorName,
+        fulfilledAt: reqDoc.fulfilledAt,
+        myResponseStatus: recipient?.status || 'SENT', // 'SENT' | 'ACCEPTED' | 'DECLINED' | 'DONATED'
+        respondedAt: recipient?.respondedAt || null,
+        distanceKm: recipient?.distanceKm ?? 0,
+        createdAt: reqDoc.createdAt,
+      };
+    });
+
+    // Also get this donor's emergency donation receipts
+    const receiptFilter = [];
+    if (donorId) receiptFilter.push({ donorId });
+    if (donorEmail) receiptFilter.push({ donorEmail });
+    const receipts = await EmergencyDonation.find({ $or: receiptFilter }).sort({ donationDate: -1 });
+
+    return res.status(200).json({
+      success: true,
+      requests: formatted,
+      receipts,
+    });
+  } catch (error) {
+    console.error('Get Donor Emergency Requests Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error retrieving emergency requests.',
+    });
+  }
+};
+
+/**
+ * @desc    Donor accepts or declines an emergency request
+ * @route   POST /api/donor/emergency-requests/:id/respond
+ * @access  Donor
+ */
+export const respondToEmergencyRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, donorId: bodyDonorId, donorEmail: bodyDonorEmail } = req.body; // 'ACCEPT' | 'DECLINE'
+    const donorId =
+      bodyDonorId ||
+      req.headers['x-user-id'] ||
+      req.headers['x-donor-id'] ||
+      req.user?.id ||
+      req.user?._id;
+    const donorEmail = (
+      bodyDonorEmail ||
+      req.headers['x-user-email'] ||
+      req.user?.email ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+    if (!['ACCEPT', 'DECLINE'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid response action. Must be ACCEPT or DECLINE.',
+      });
+    }
+
+    const emergencyReq = await EmergencyRequest.findById(id);
+    if (!emergencyReq) {
+      return res.status(404).json({
+        success: false,
+        message: 'Emergency request not found.',
+      });
+    }
+
+    if (emergencyReq.status === 'FULFILLED') {
+      return res.status(400).json({
+        success: false,
+        isFulfilled: true,
+        message:
+          'This emergency has already been fulfilled by another voluntary donor. Thank you for your readiness to help!',
+      });
+    }
+
+    if (emergencyReq.status === 'CANCELLED') {
+      return res.status(400).json({
+        success: false,
+        message: 'This emergency request has been cancelled.',
+      });
+    }
+
+    const recipientIndex = emergencyReq.recipients.findIndex(
+      (r) =>
+        (donorId && r.donorId?.toString() === donorId.toString()) ||
+        (donorEmail && r.donorEmail?.toLowerCase() === donorEmail)
+    );
+
+    if (recipientIndex === -1) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not listed as a recipient for this emergency request.',
+      });
+    }
+
+    emergencyReq.recipients[recipientIndex].status = action === 'ACCEPT' ? 'ACCEPTED' : 'DECLINED';
+    emergencyReq.recipients[recipientIndex].respondedAt = new Date();
+    await emergencyReq.save();
+
+    // If accepted, send an urgent notification to the hospital
+    if (action === 'ACCEPT') {
+      try {
+        const donor = await Donor.findById(emergencyReq.recipients[recipientIndex].donorId);
+        const donorName =
+          donor?.name || emergencyReq.recipients[recipientIndex].donorName || 'Voluntary Donor';
+        const donorPhone = donor?.phone || emergencyReq.recipients[recipientIndex].donorPhone || '';
+
+        // Resolve hospital admin email and recipientId
+        let targetHospitalAdmin = null;
+        if (emergencyReq.hospitalId) {
+          targetHospitalAdmin = await Admin.findById(emergencyReq.hospitalId);
+        }
+        if (!targetHospitalAdmin && emergencyReq.hospitalName) {
+          targetHospitalAdmin = await Admin.findOne({
+            $or: [
+              { hospitalName: emergencyReq.hospitalName },
+              { name: emergencyReq.hospitalName },
+            ],
+          });
+        }
+
+        const hospitalEmail = targetHospitalAdmin?.email || 'hospital@rakt.org';
+        const hospitalRecipientId =
+          targetHospitalAdmin?._id || emergencyReq.hospitalId || emergencyReq._id;
+
+        await Notification.create({
+          recipientId: hospitalRecipientId,
+          recipientEmail: hospitalEmail,
+          type: 'EMERGENCY_REQUEST',
+          severity: 'critical',
+          title: `🚨 Donor Accepted Emergency: ${donorName}`,
+          message: `${donorName} (${emergencyReq.bloodGroup}, Ph: ${
+            donorPhone || 'N/A'
+          }) has ACCEPTED your emergency blood dispatch for ${emergencyReq.bloodGroup} at ${
+            emergencyReq.hospitalName
+          } and is reporting to donate.`,
+          details: {
+            emergencyRequestId: emergencyReq._id,
+            donorId: donor?._id,
+            donorName,
+            donorPhone,
+            bloodGroup: emergencyReq.bloodGroup,
+            hospitalName: emergencyReq.hospitalName,
+          },
+        });
+      } catch (notifErr) {
+        console.warn('Could not dispatch acceptance notification to hospital:', notifErr.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        action === 'ACCEPT'
+          ? 'Thank you! You have accepted the emergency dispatch. Please report to the hospital emergency department.'
+          : 'Emergency request declined. Thank you.',
+      action,
+    });
+  } catch (error) {
+    console.error('Respond To Emergency Request Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error responding to emergency request.',
+    });
+  }
+};
+
+/**
+ * @desc    Get all emergency requests dispatched by hospital
+ * @route   GET /api/hospital/emergency-requests
+ * @access  Hospital Staff / Admin
+ */
+export const getHospitalEmergencyRequests = async (req, res) => {
+  try {
+    const { hospitalName, hospitalUserId } = await resolveHospitalInfo(req);
+    const filter = {};
+    if (hospitalUserId) {
+      filter.$or = [{ hospitalId: hospitalUserId }, { hospitalName }];
+    } else if (hospitalName) {
+      filter.hospitalName = hospitalName;
+    }
+
+    const requests = await EmergencyRequest.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    return res.status(200).json({
+      success: true,
+      count: requests.length,
+      requests,
+    });
+  } catch (error) {
+    console.error('Get Hospital Emergency Requests Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error retrieving hospital emergency requests.',
+    });
+  }
+};
+
+/**
+ * @desc    Collect blood from donor for an emergency (Does NOT add to regular bloodstock, applies 90-day cooldown, resolves emergency, and notifies other donors)
+ * @route   POST /api/hospital/emergency-requests/:id/collect
+ * @access  Hospital Staff / Admin
+ */
+export const collectEmergencyBlood = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      donorId,
+      bagVolume = '350ml',
+      units = 1,
+      staffName,
+      patientName = 'Emergency Patient',
+      patientWard = 'Emergency / ICU',
+      notes = 'Emergency Direct Patient Transfusion. Not added to general inventory stock.',
+    } = req.body;
+
+    if (!donorId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Donor ID is required to record blood collection.',
+      });
+    }
+
+    const emergencyReq = await EmergencyRequest.findById(id);
+    if (!emergencyReq) {
+      return res.status(404).json({
+        success: false,
+        message: 'Emergency request not found.',
+      });
+    }
+
+    if (emergencyReq.status === 'FULFILLED') {
+      return res.status(400).json({
+        success: false,
+        message: 'This emergency request has already been fulfilled.',
+      });
+    }
+
+    const donor = await Donor.findById(donorId);
+    if (!donor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Donor record not found.',
+      });
+    }
+
+    const now = new Date();
+    const cooldownUntil = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000); // 90 days cooldown
+
+    // Generate unique official receipt number
+    const randomHex = Math.floor(1000 + Math.random() * 9000);
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const receiptNumber = `EMERG-REC-${dateStr}-${randomHex}`;
+
+    // 1. Create EmergencyDonation Record (STRICTLY NOT ADDED TO BLOODSTOCK!)
+    const emergencyDonation = await EmergencyDonation.create({
+      emergencyRequestId: emergencyReq._id,
+      receiptNumber,
+      donorId: donor._id,
+      donorName: donor.name,
+      donorEmail: donor.email,
+      donorPhone: donor.phone || '',
+      bloodGroup: donor.bloodGroup || emergencyReq.bloodGroup || 'O+',
+      hospitalId: emergencyReq.hospitalId,
+      hospitalName: emergencyReq.hospitalName,
+      hospitalLocation: emergencyReq.hospitalLocation,
+      hospitalPhone: emergencyReq.hospitalPhone,
+      bagVolume: ['350ml', '450ml', '500ml'].includes(bagVolume) ? bagVolume : '350ml',
+      units: Math.max(1, parseInt(units, 10) || 1),
+      donationDate: now,
+      cooldownUntil,
+      collectedByStaffName: staffName?.trim() || 'Emergency Medical Officer',
+      patientName: patientName?.trim() || 'Emergency Patient',
+      patientWard: patientWard?.trim() || 'Emergency / ICU',
+      notes: notes?.trim() || 'Emergency Direct Patient Transfusion. Not added to general stock.',
+      isDirectPatientTransfusion: true,
+      addedToBloodStock: false, // Critical: strictly not added to regular blood stock
+      status: 'COMPLETED',
+    });
+
+    // 2. Update Donor: Activate 90-Day Cooldown & increment donations
+    donor.lastDonationDate = now;
+    donor.totalDonations = (donor.totalDonations || 0) + 1;
+    await donor.save();
+
+    // 3. Update EmergencyRequest: Set to FULFILLED and mark donating recipient
+    emergencyReq.status = 'FULFILLED';
+    emergencyReq.fulfilledAt = now;
+    emergencyReq.donatedDonorId = donor._id;
+    emergencyReq.donatedDonorName = donor.name;
+    emergencyReq.emergencyDonationId = emergencyDonation._id;
+
+    // Mark donating recipient as DONATED
+    const recipientIndex = emergencyReq.recipients.findIndex(
+      (r) => r.donorId?.toString() === donor._id.toString()
+    );
+    if (recipientIndex !== -1) {
+      emergencyReq.recipients[recipientIndex].status = 'DONATED';
+    }
+    await emergencyReq.save();
+
+    // 4. NOTIFY ALL OTHER DONORS: "Emergency fulfilled / no longer needed"
+    try {
+      const otherRecipients = emergencyReq.recipients.filter(
+        (r) =>
+          r.donorId &&
+          r.donorEmail &&
+          r.donorId.toString() !== donor._id.toString()
+      );
+
+      const resolveNotifications = otherRecipients.map((rec) => ({
+        recipientId: rec.donorId,
+        recipientEmail: rec.donorEmail,
+        type: 'EMERGENCY_REQUEST',
+        severity: 'info',
+        title: '✅ Emergency Resolved: Blood Collected',
+        message: `The urgent blood requirement for ${emergencyReq.bloodGroup} at ${emergencyReq.hospitalName} has been fulfilled by a responding voluntary donor. You do not need to report to the hospital. Thank you for your readiness to save lives!`,
+        details: {
+          emergencyRequestId: emergencyReq._id,
+          hospitalName: emergencyReq.hospitalName,
+          bloodGroup: emergencyReq.bloodGroup,
+          isResolved: true,
+        },
+      }));
+
+      if (resolveNotifications.length > 0) {
+        await Notification.insertMany(resolveNotifications);
+      }
+    } catch (notifErr) {
+      console.warn('Could not dispatch emergency resolved notifications to other donors:', notifErr.message);
+    }
+
+    // 5. Notify Donating Donor with their Official Emergency Receipt
+    try {
+      if (donor._id && donor.email) {
+        await Notification.create({
+          recipientId: donor._id,
+          recipientEmail: donor.email,
+          type: 'DONATION_COMPLETED',
+          severity: 'success',
+          title: '🎉 Emergency Blood Donation Completed!',
+          message: `Thank you, ${donor.name}! Your emergency donation of ${emergencyDonation.bloodGroup} (${emergencyDonation.bagVolume}) has been officially registered at ${emergencyReq.hospitalName}. Receipt #${receiptNumber} generated. Under clinical safety protocols, your 90-day cooldown period is now active.`,
+          details: {
+            receiptNumber,
+            emergencyDonationId: emergencyDonation._id,
+            donationDate: now,
+            hospitalName: emergencyReq.hospitalName,
+            cooldownUntil,
+            bloodGroup: emergencyDonation.bloodGroup,
+          },
+        });
+      }
+    } catch (donorNotifErr) {
+      console.warn('Could not dispatch receipt notification to donor:', donorNotifErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Emergency blood donation officially registered! Receipt #${receiptNumber} generated. Cooldown active for 90 days. Other donors have been notified that emergency is resolved.`,
+      receipt: emergencyDonation,
+      emergencyRequest: emergencyReq,
+    });
+  } catch (error) {
+    console.error('Collect Emergency Blood Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to record emergency donation.',
+    });
+  }
+};
+
+/**
+ * @desc    Get emergency donation receipt details
+ * @route   GET /api/emergency-donations/receipt/:receiptNumber
+ * @access  Public / Donor / Hospital
+ */
+export const getEmergencyDonationReceipt = async (req, res) => {
+  try {
+    const { receiptNumber } = req.params;
+    const receipt = await EmergencyDonation.findOne({ receiptNumber });
+    if (!receipt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Emergency donation receipt not found.',
+      });
+    }
+    return res.status(200).json({ success: true, receipt });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Server error retrieving receipt.',
+    });
+  }
+};
+
 

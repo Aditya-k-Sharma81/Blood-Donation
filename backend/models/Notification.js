@@ -28,7 +28,7 @@ const notificationSchema = new mongoose.Schema(
     },
     severity: {
       type: String,
-      enum: ['critical', 'warning', 'success', 'info'],
+      enum: ['critical', 'warning', 'success', 'info', 'high', 'medium', 'low'],
       default: 'info',
     },
     title: {

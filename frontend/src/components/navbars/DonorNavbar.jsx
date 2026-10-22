@@ -143,6 +143,19 @@ export default function DonorNavbar({ user, onLogout, autoLocation, onOpenAuth }
               <span>My Bookings</span>
             </Link>
 
+            {/* Emergency Requests Link */}
+            <Link
+              to="/donor/emergency-requests"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                location.pathname.startsWith('/donor/emergency')
+                  ? 'bg-red-600 text-white shadow-red-600/20'
+                  : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
+              }`}
+            >
+              <Radio size={13} className={location.pathname.startsWith('/donor/emergency') ? 'text-white animate-pulse' : 'text-red-600 animate-pulse'} />
+              <span>Emergency Requests</span>
+            </Link>
+
             {/* Notification Bell with Badge & Dropdown */}
             <div className="relative" ref={notifRef}>
               <button
@@ -402,6 +415,17 @@ export default function DonorNavbar({ user, onLogout, autoLocation, onOpenAuth }
                   >
                     <User size={15} className="text-rose-600" />
                     <span>Profile</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      navigate('/donor/emergency-requests');
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer text-left text-red-600 hover:bg-red-50"
+                  >
+                    <Radio size={15} className="text-red-600 animate-pulse" />
+                    <span>Emergency Requests</span>
                   </button>
 
                   <button

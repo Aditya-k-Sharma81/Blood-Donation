@@ -7,6 +7,11 @@ import {
   sendEmergencyRequest,
   issueBloodToPatient,
   getBloodIssueHistory,
+  getDonorEmergencyRequests,
+  respondToEmergencyRequest,
+  getHospitalEmergencyRequests,
+  collectEmergencyBlood,
+  getEmergencyDonationReceipt,
 } from '../controllers/bloodStockController.js';
 
 const router = express.Router();
@@ -33,6 +38,15 @@ router.get('/hospital/donors-by-radius', getNearbyDonors);
 // Dispatch Emergency Blood Request to Donors
 router.post('/hospital/send-emergency-request', sendEmergencyRequest);
 router.post('/hospital/emergency-request', sendEmergencyRequest);
+
+// Donor Emergency Requests & Response
+router.get('/donor/emergency-requests', getDonorEmergencyRequests);
+router.post('/donor/emergency-requests/:id/respond', respondToEmergencyRequest);
+
+// Hospital Emergency Requests & Blood Collection
+router.get('/hospital/emergency-requests', getHospitalEmergencyRequests);
+router.post('/hospital/emergency-requests/:id/collect', collectEmergencyBlood);
+router.get('/emergency-donations/receipt/:receiptNumber', getEmergencyDonationReceipt);
 
 export default router;
 

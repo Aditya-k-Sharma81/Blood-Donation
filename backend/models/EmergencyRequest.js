@@ -64,8 +64,12 @@ const emergencyRequestSchema = new mongoose.Schema(
         lastDonationDate: Date,
         status: {
           type: String,
-          enum: ['SENT', 'ACCEPTED', 'DECLINED'],
+          enum: ['SENT', 'ACCEPTED', 'DECLINED', 'DONATED'],
           default: 'SENT',
+        },
+        respondedAt: {
+          type: Date,
+          default: null,
         },
         sentAt: {
           type: Date,
@@ -77,6 +81,24 @@ const emergencyRequestSchema = new mongoose.Schema(
       type: String,
       enum: ['ACTIVE', 'FULFILLED', 'CANCELLED'],
       default: 'ACTIVE',
+    },
+    donatedDonorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Donor',
+      default: null,
+    },
+    donatedDonorName: {
+      type: String,
+      default: '',
+    },
+    emergencyDonationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'EmergencyDonation',
+      default: null,
+    },
+    fulfilledAt: {
+      type: Date,
+      default: null,
     },
   },
   {

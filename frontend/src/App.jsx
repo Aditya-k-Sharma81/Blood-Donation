@@ -17,6 +17,7 @@ import StaffManagementPage from './pages/StaffManagementPage';
 import DonorProfilePage from './pages/DonorProfilePage';
 import AppointmentPage from './pages/AppointmentPage';
 import MyBookingsPage from './pages/MyBookingsPage';
+import DonorEmergencyRequestsPage from './pages/DonorEmergencyRequestsPage';
 import useDonorAutoLocation from './hooks/useDonorAutoLocation';
 
 export default function App() {
@@ -174,6 +175,28 @@ export default function App() {
                   <MyBookingsPage user={loggedInUser} />
                 ) : (
                   <Navigate to="/" replace />
+                )
+              }
+            />
+
+            {/* /donor/emergency-requests and /emergency-requests -> Dedicated Donor Emergency Requests & Response Portal */}
+            <Route
+              path="/donor/emergency-requests"
+              element={
+                loggedInUser && loggedInUser.role === 'DONOR' ? (
+                  <DonorEmergencyRequestsPage user={loggedInUser} />
+                ) : (
+                  <Navigate to="/?auth=login" replace />
+                )
+              }
+            />
+            <Route
+              path="/emergency-requests"
+              element={
+                loggedInUser && loggedInUser.role === 'DONOR' ? (
+                  <Navigate to="/donor/emergency-requests" replace />
+                ) : (
+                  <Navigate to="/?auth=login" replace />
                 )
               }
             />
