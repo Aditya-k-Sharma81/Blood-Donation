@@ -5,7 +5,7 @@ import { ShieldCheck, LogOut, User } from 'lucide-react';
 export default function AdminPage({ user, onLogout }) {
   const navigate = useNavigate();
   return (
-    <div className="flex flex-col items-center justify-center text-center p-8 md:p-12 bg-white border border-slate-200 rounded-3xl shadow-xl max-w-xl w-full">
+    <div className="flex flex-col items-center justify-center text-center p-8 md:p-12 bg-white border border-slate-200 rounded-3xl shadow-xl max-w-xl w-full mx-auto my-6">
       <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-full text-indigo-600 mb-6 shadow-sm">
         <ShieldCheck className="w-16 h-16" />
       </div>

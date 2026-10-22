@@ -162,7 +162,7 @@ export default function StaffManagementPage({ user }) {
   const revokedCount = staffList.filter((s) => !s.isPermitted).length;
 
   return (
-    <div className="w-full max-w-4xl my-6">
+    <div className="w-full max-w-4xl mx-auto my-6 px-4">
       <div className="bg-white border border-slate-200/80 rounded-3xl shadow-xl shadow-slate-200/40 overflow-hidden transition-all">
         {/* Refined Modern Card Header */}
         <div className="px-6 py-4 bg-slate-50/80 border-b border-slate-200/70 flex items-center justify-between">

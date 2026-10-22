@@ -410,7 +410,7 @@ export default function AdminProfilePage({ user, onUserUpdate }) {
   }
 
   return (
-    <div className="w-full max-w-2xl my-6">
+    <div className="w-full max-w-2xl mx-auto my-6 px-4">
       <div className="bg-white border border-slate-200/80 rounded-3xl shadow-xl shadow-slate-200/40 overflow-hidden transition-all">
         {/* Sleek Top Banner */}
         <div className="h-28 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 px-6 py-4 flex justify-between items-start text-white">

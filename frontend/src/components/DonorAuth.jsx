@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { User, Mail, Lock, LogIn, UserPlus } from 'lucide-react';
+import { User, Mail, Lock, LogIn, UserPlus, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 
-export default function DonorAuth({ onLoginSuccess }) {
-  const [isLogin, setIsLogin] = useState(true);
+export default function DonorAuth({ onLoginSuccess, initialMode = 'login', onCancel }) {
+  const [isLogin, setIsLogin] = useState(initialMode !== 'signup');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -66,7 +66,17 @@ export default function DonorAuth({ onLoginSuccess }) {
   };
 
   return (
-    <div className="w-full max-w-md p-8 bg-white border border-slate-200 rounded-2xl shadow-xl transition-all">
+    <div className="relative w-full max-w-md p-8 bg-white border border-slate-200 rounded-2xl shadow-xl transition-all">
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+          aria-label="Close"
+        >
+          <X size={18} />
+        </button>
+      )}
       <div className="text-center mb-6">
         <span className="inline-block bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
           🩸 Voluntary Donor

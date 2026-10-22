@@ -168,7 +168,7 @@ export default function HospitalSignUpPage({ user }) {
   };
 
   return (
-    <div className="w-full max-w-xl my-4">
+    <div className="w-full max-w-xl mx-auto my-6 px-4">
       <div className="bg-white border border-slate-200/80 rounded-3xl shadow-xl shadow-slate-200/40 overflow-hidden transition-all">
         {/* Refined Modern Card Header (Blue color removed, matching admin design system) */}
         <div className="px-6 py-4 bg-slate-50/80 border-b border-slate-200/70 flex items-center justify-between">

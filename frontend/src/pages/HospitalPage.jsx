@@ -259,71 +259,7 @@ export default function HospitalPage({ user, onLogout }) {
 
 
   return (
-    <div className="w-full max-w-6xl my-4 space-y-6 self-start">
-      {/* Hospital Staff Header Banner */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center shrink-0 shadow-xs">
-            <Droplets className="w-6 h-6 fill-red-600/20" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-                {hospitalName}
-              </h1>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live Inventory Sync</span>
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-              <span>Medical Staff: <strong>{user?.name || user?.email || 'Authorized Staff'}</strong></span>
-              <span>•</span>
-              <span>Refreshed: {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Header Actions */}
-        <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
-          <Link
-            to="/hospital/appointments"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-all cursor-pointer shadow-xs"
-            title="View all voluntary blood donation appointments"
-          >
-            <Calendar size={14} className="text-red-600" />
-            <span>Appointments</span>
-          </Link>
-
-          <Link
-            to="/hospital/radius-search"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-all cursor-pointer shadow-xs"
-            title="Find donors within 5km, 10km, 15km radius of hospital"
-          >
-            <Radio size={14} className="text-red-600" />
-            <span>Radius Search</span>
-          </Link>
-
-          <button
-            onClick={() => fetchStockData()}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
-            title="Refresh current inventory numbers"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin text-red-600' : 'text-slate-500'} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
-
-          <button
-            onClick={handleResetStock}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-red-700 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-xl transition-all cursor-pointer shadow-xs"
-            title="Reset all blood groups to 0 in database"
-          >
-            <RotateCcw size={14} className="text-slate-500" />
-            <span className="hidden sm:inline">Reset to 0</span>
-          </button>
-        </div>
-      </div>
+    <div className="w-full max-w-6xl mx-auto my-6 px-4 space-y-6">
 
       {/* Critical Shortage Warning Banner (If Any) */}
       {criticalGroups.length > 0 && (
@@ -525,6 +461,25 @@ export default function HospitalPage({ user, onLogout }) {
               <List size={15} />
             </button>
           </div>
+
+          <button
+            onClick={() => fetchStockData()}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
+            title="Refresh current inventory numbers"
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin text-red-600' : 'text-slate-500'} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+
+          <button
+            onClick={handleResetStock}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-red-700 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-xl transition-all cursor-pointer shadow-xs shrink-0"
+            title="Reset all blood groups to 0 in database"
+          >
+            <RotateCcw size={13} className="text-slate-500" />
+            <span className="hidden sm:inline">Reset to 0</span>
+          </button>
         </div>
       </div>
 

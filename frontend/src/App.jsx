@@ -28,6 +28,14 @@ export default function App() {
     }
   });
 
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('signup');
+
+  const handleOpenAuth = (mode = 'signup') => {
+    setAuthMode(mode);
+    setAuthModalOpen(true);
+  };
+
   const handleLoginSuccess = (user) => {
     setLoggedInUser(user);
     localStorage.setItem('rakt_user', JSON.stringify(user));
@@ -71,19 +79,29 @@ export default function App() {
   return (
     <Router>
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
-        <Navbar loggedInUser={loggedInUser} handleLogout={handleLogout} autoLocation={autoLocation} />
+        <Navbar
+          loggedInUser={loggedInUser}
+          handleLogout={handleLogout}
+          autoLocation={autoLocation}
+          onOpenAuth={handleOpenAuth}
+        />
 
-        <main className="flex-1 flex justify-center items-center p-6 md:p-10">
+        <main className="flex-1 flex flex-col w-full">
           <Routes>
-            {/* / -> Donor Portal */}
+            {/* / -> Donor Portal & High-Converting Landing Page */}
             <Route
               path="/"
               element={
-                loggedInUser && loggedInUser.role === 'DONOR' ? (
-                  <DonorPage user={loggedInUser} onLogout={handleLogout} autoLocation={autoLocation} />
-                ) : (
-                  <DonorAuth onLoginSuccess={handleLoginSuccess} />
-                )
+                <DonorPage
+                  user={loggedInUser}
+                  onLogout={handleLogout}
+                  autoLocation={autoLocation}
+                  onLoginSuccess={handleLoginSuccess}
+                  authModalOpen={authModalOpen}
+                  setAuthModalOpen={setAuthModalOpen}
+                  authMode={authMode}
+                  setAuthMode={setAuthMode}
+                />
               }
             />
 
@@ -166,7 +184,9 @@ export default function App() {
                 loggedInUser && loggedInUser.role === 'ADMIN' ? (
                   <Navigate to={new URLSearchParams(window.location.search).get('redirect') || '/admin'} replace />
                 ) : (
-                  <AdminLogin onLoginSuccess={handleLoginSuccess} />
+                  <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
+                    <AdminLogin onLoginSuccess={handleLoginSuccess} />
+                  </div>
                 )
               }
             />
@@ -176,7 +196,9 @@ export default function App() {
               path="/admin"
               element={
                 loggedInUser && loggedInUser.role === 'ADMIN' ? (
-                  <AdminPage user={loggedInUser} onLogout={handleLogout} />
+                  <div className="flex-1 flex justify-center p-6 md:p-10 w-full">
+                    <AdminPage user={loggedInUser} onLogout={handleLogout} />
+                  </div>
                 ) : (
                   <Navigate to="/admin/login" replace />
                 )
@@ -237,9 +259,13 @@ export default function App() {
               path="/hospital"
               element={
                 loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
-                  <HospitalPage user={loggedInUser} onLogout={handleLogout} />
+                  <div className="flex-1 flex justify-center p-6 md:p-10 w-full">
+                    <HospitalPage user={loggedInUser} onLogout={handleLogout} />
+                  </div>
                 ) : (
-                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
+                    <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  </div>
                 )
               }
             />
@@ -251,7 +277,9 @@ export default function App() {
                 loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
                   <HospitalAppointmentsPage user={loggedInUser} onLogout={handleLogout} />
                 ) : (
-                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
+                    <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  </div>
                 )
               }
             />
@@ -261,7 +289,9 @@ export default function App() {
                 loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
                   <HospitalAppointmentsPage user={loggedInUser} onLogout={handleLogout} />
                 ) : (
-                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
+                    <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  </div>
                 )
               }
             />
@@ -273,7 +303,9 @@ export default function App() {
                 loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
                   <HospitalRadiusSearchPage user={loggedInUser} onLogout={handleLogout} />
                 ) : (
-                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
+                    <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  </div>
                 )
               }
             />
@@ -283,7 +315,9 @@ export default function App() {
                 loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
                   <HospitalRadiusSearchPage user={loggedInUser} onLogout={handleLogout} />
                 ) : (
-                  <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
+                    <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  </div>
                 )
               }
             />

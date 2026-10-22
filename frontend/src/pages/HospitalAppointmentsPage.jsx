@@ -279,56 +279,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
   }, [appointments, statusFilter, bloodGroupFilter, searchQuery]);
 
   return (
-    <div className="w-full max-w-6xl my-4 space-y-6 self-start relative">
-      {/* Hospital Staff Header Banner */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center shrink-0 shadow-xs">
-            <Calendar className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-                Donation Appointments
-              </h1>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live Schedule</span>
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
-              <span>Center: <strong>{hospitalName}</strong></span>
-              <span>•</span>
-              <span>Logged Staff: <strong>{user?.name || user?.email || 'Authorized Staff'}</strong></span>
-              <span>•</span>
-              <span>Refreshed: {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Header Quick Actions */}
-        <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
-          <Link
-            to="/hospital"
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs"
-            title="Go to Blood Inventory Management"
-          >
-            <Layers size={14} className="text-slate-500" />
-            <span className="hidden sm:inline">Blood Stock</span>
-          </Link>
-
-          <button
-            onClick={() => fetchAppointments()}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
-            title="Refresh appointments"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin text-red-600' : 'text-slate-500'} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
-        </div>
-      </div>
-
+    <div className="w-full max-w-6xl mx-auto my-6 px-4 space-y-6 relative">
       {/* Metric Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {/* Active Appointments */}
@@ -572,27 +523,39 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
             </select>
           </div>
 
-          {/* View Mode Toggle: Grid vs Table */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80 self-end sm:self-auto shrink-0">
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            {/* View Mode Toggle: Grid vs Table */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === 'grid'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                title="Card Grid View"
+              >
+                <LayoutGrid size={15} />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === 'table'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                title="Compact Table View"
+              >
+                <List size={15} />
+              </button>
+            </div>
+
             <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === 'grid'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
-                }`}
-              title="Card Grid View"
+              onClick={() => fetchAppointments()}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
+              title="Refresh appointments"
             >
-              <LayoutGrid size={15} />
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewMode === 'table'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
-                }`}
-              title="Compact Table View"
-            >
-              <List size={15} />
+              <RefreshCw size={13} className={loading ? 'animate-spin text-red-600' : 'text-slate-500'} />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </div>

@@ -10,10 +10,8 @@ import {
   Phone,
   User,
   UserCheck,
-  ArrowLeft,
   RefreshCw,
   Check,
-  ClipboardList,
   AlertCircle,
   Sparkles,
 } from 'lucide-react';
@@ -355,41 +353,6 @@ export default function AppointmentPage({ user }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto py-6 px-4 sm:px-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
-        <div>
-          <button
-            onClick={() => navigate('/')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-rose-600 transition-colors mb-2 cursor-pointer"
-          >
-            <ArrowLeft size={14} /> Back to Donor Home
-          </button>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 shadow-xs">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-                Blood Donation Appointment
-              </h1>
-              <p className="text-xs text-slate-500">
-                Book for tomorrow or the next 3 days. Real-time slot availability.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Separate My Bookings Navigation Button */}
-        <button
-          type="button"
-          onClick={() => navigate('/my-bookings')}
-          className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-rose-600 border border-slate-200 hover:border-rose-300 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer self-start sm:self-auto"
-        >
-          <ClipboardList size={14} className="text-rose-600" />
-          <span>My Bookings</span>
-        </button>
-      </div>
-
       {/* SIMPLE BOOKING FORM */}
       <form onSubmit={handleSubmitBooking} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
         <div className="border-b border-slate-100 pb-3 flex items-center justify-between">

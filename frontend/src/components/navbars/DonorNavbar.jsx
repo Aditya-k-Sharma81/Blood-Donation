@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { HeartPulse, User, LogOut, ChevronDown, Droplets, MapPin, Calendar, ClipboardList, Bell, AlertTriangle, CheckCircle2, Radio, Phone } from 'lucide-react';
 import MedicalReportModal from '../MedicalReportModal';
 
-export default function DonorNavbar({ user, onLogout, autoLocation }) {
+export default function DonorNavbar({ user, onLogout, autoLocation, onOpenAuth }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -128,7 +128,7 @@ export default function DonorNavbar({ user, onLogout, autoLocation }) {
             {/* Quick Book Appointment Link */}
             <Link
               to="/appointment"
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-xs transition-colors"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 hover:text-rose-600 border border-slate-200 shadow-xs transition-colors"
             >
               <Calendar size={13} className="text-rose-600" />
               <span>Book Appointment</span>
@@ -418,6 +418,45 @@ export default function DonorNavbar({ user, onLogout, autoLocation }) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Guest Navigation & Auth Actions */}
+      {(!user || user.role !== 'DONOR') && (
+        <div className="flex items-center gap-2 sm:gap-3">
+          <a
+            href="#compatibility"
+            className="hidden lg:inline-flex text-xs font-semibold text-slate-600 hover:text-rose-600 transition-colors"
+          >
+            Compatibility
+          </a>
+          <a
+            href="#how-it-works"
+            className="hidden md:inline-flex text-xs font-semibold text-slate-600 hover:text-rose-600 transition-colors"
+          >
+            How It Works
+          </a>
+          <a
+            href="#eligibility"
+            className="hidden md:inline-flex text-xs font-semibold text-slate-600 hover:text-rose-600 transition-colors"
+          >
+            Eligibility
+          </a>
+          <button
+            type="button"
+            onClick={() => onOpenAuth ? onOpenAuth('login') : navigate('/?auth=login')}
+            className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-rose-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all shadow-xs cursor-pointer"
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenAuth ? onOpenAuth('signup') : navigate('/?auth=signup')}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all shadow-xs cursor-pointer"
+          >
+            <HeartPulse size={14} />
+            <span>Become a Donor</span>
+          </button>
         </div>
       )}
     </div>

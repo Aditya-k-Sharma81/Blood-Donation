@@ -4,7 +4,7 @@ import AdminNavbar from './navbars/AdminNavbar';
 import DonorNavbar from './navbars/DonorNavbar';
 import HospitalNavbar from './navbars/HospitalNavbar';
 
-export default function Navbar({ loggedInUser, handleLogout, autoLocation }) {
+export default function Navbar({ loggedInUser, handleLogout, autoLocation, onOpenAuth }) {
   const location = useLocation();
 
   // Route /admin or /admin/login or /staff -> AdminNavbar ONLY
@@ -18,5 +18,5 @@ export default function Navbar({ loggedInUser, handleLogout, autoLocation }) {
   }
 
   // Route / -> DonorNavbar ONLY
-  return <DonorNavbar user={loggedInUser} onLogout={handleLogout} autoLocation={autoLocation} />;
+  return <DonorNavbar user={loggedInUser} onLogout={handleLogout} autoLocation={autoLocation} onOpenAuth={onOpenAuth} />;
 }
