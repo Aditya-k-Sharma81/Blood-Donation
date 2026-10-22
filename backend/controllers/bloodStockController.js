@@ -5,6 +5,7 @@ import Donor from '../models/Donor.js';
 import DonationRecord from '../models/DonationRecord.js';
 import Notification from '../models/Notification.js';
 import EmergencyRequest from '../models/EmergencyRequest.js';
+import BloodIssue from '../models/BloodIssue.js';
 
 const ALL_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
@@ -665,3 +666,202 @@ export const sendEmergencyRequest = async (req, res) => {
     });
   }
 };
+
+// @desc    Dispense / Issue blood to a patient in need and reduce hospital stock
+// @route   POST /api/hospital/blood-issue
+// @access  Hospital Staff
+export const issueBloodToPatient = async (req, res) => {
+  try {
+    const {
+      patientName,
+      patientPhone,
+      patientEmail,
+      patientAge,
+      patientGender,
+      patientHospitalId,
+      prescribingDoctor,
+      bloodGroup,
+      bagSize = '350ml',
+      units = 1,
+      purpose,
+      notes,
+      staffName,
+      staffEmail,
+      staffId,
+    } = req.body;
+
+    // Validate required fields
+    if (!patientName?.trim() || !patientPhone?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Patient name and contact phone are required to issue blood.',
+      });
+    }
+
+    if (!bloodGroup || !ALL_BLOOD_GROUPS.includes(bloodGroup.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: `Valid blood group is required. Allowed: ${ALL_BLOOD_GROUPS.join(', ')}`,
+      });
+    }
+
+    const requestedUnits = Number(units);
+    if (isNaN(requestedUnits) || requestedUnits < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Number of units must be at least 1.',
+      });
+    }
+
+    const normalizedBagSize = ['350ml', '450ml', '500ml'].includes(bagSize) ? bagSize : '350ml';
+    const cleanGroup = bloodGroup.trim();
+
+    const { admin, hospitalUserId, hospitalName } = await resolveHospitalInfo(req);
+
+    const query = hospitalUserId
+      ? { $or: [{ hospitalUserId, bloodGroup: cleanGroup }, { hospitalName, bloodGroup: cleanGroup }] }
+      : { hospitalName, bloodGroup: cleanGroup };
+
+    let stockItem = await BloodStock.findOne(query);
+
+    if (!stockItem) {
+      return res.status(400).json({
+        success: false,
+        message: `No stock record found for ${cleanGroup} in hospital inventory.`,
+      });
+    }
+
+    // Determine available units for the selected bag size
+    let availableInBag = 0;
+    if (normalizedBagSize === '350ml') {
+      availableInBag = stockItem.units350 || 0;
+    } else if (normalizedBagSize === '450ml') {
+      availableInBag = stockItem.units450 || 0;
+    } else if (normalizedBagSize === '500ml') {
+      availableInBag = stockItem.units500 || 0;
+    }
+
+    // Check if enough stock exists in this specific bag size
+    if (availableInBag < requestedUnits) {
+      const totalAvailable = stockItem.units || 0;
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient inventory! Hospital only has ${availableInBag} bag(s) of ${cleanGroup} (${normalizedBagSize}). Total all sizes available: ${totalAvailable} bag(s).`,
+      });
+    }
+
+    // Deduct from stock
+    if (normalizedBagSize === '350ml') {
+      stockItem.units350 = Math.max(0, (stockItem.units350 || 0) - requestedUnits);
+    } else if (normalizedBagSize === '450ml') {
+      stockItem.units450 = Math.max(0, (stockItem.units450 || 0) - requestedUnits);
+    } else if (normalizedBagSize === '500ml') {
+      stockItem.units500 = Math.max(0, (stockItem.units500 || 0) - requestedUnits);
+    }
+
+    stockItem.units = (stockItem.units350 || 0) + (stockItem.units450 || 0) + (stockItem.units500 || 0);
+    const effectiveStaff = staffName?.trim() || req.headers['x-user-name'] || 'Hospital Staff';
+    stockItem.updatedBy = `Dispensed ${requestedUnits}x ${cleanGroup} (${normalizedBagSize}) to ${patientName.trim()} by ${effectiveStaff}`;
+    await stockItem.save();
+
+    // Generate unique issue reference
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const randPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const issueReference = `ISSUE-${datePart}-${cleanGroup.replace('+', 'P').replace('-', 'N')}-${randPart}`;
+
+    const newIssue = await BloodIssue.create({
+      issueReference,
+      hospitalUserId,
+      hospitalName,
+      patientName: patientName.trim(),
+      patientPhone: patientPhone.trim(),
+      patientEmail: patientEmail?.trim() || '',
+      patientAge: patientAge ? Number(patientAge) : null,
+      patientGender: patientGender || 'Not Specified',
+      patientHospitalId: patientHospitalId?.trim() || '',
+      prescribingDoctor: prescribingDoctor?.trim() || '',
+      bloodGroup: cleanGroup,
+      bagSize: normalizedBagSize,
+      units: requestedUnits,
+      purpose: purpose?.trim() || 'Emergency Patient Transfusion',
+      notes: notes?.trim() || '',
+      dispensedByStaffName: effectiveStaff,
+      dispensedByStaffEmail: staffEmail?.trim() || '',
+      dispensedByStaffId: staffId || null,
+      issueDate: now,
+      status: 'ISSUED',
+    });
+
+    // Check if patient phone or email corresponds to a registered donor, and send notification
+    try {
+      if (patientEmail?.trim() || patientPhone?.trim()) {
+        const donorRecipient = await Donor.findOne({
+          $or: [
+            ...(patientEmail?.trim() ? [{ email: patientEmail.trim().toLowerCase() }] : []),
+            ...(patientPhone?.trim() ? [{ phone: patientPhone.trim() }] : []),
+          ],
+        });
+
+        if (donorRecipient) {
+          await Notification.create({
+            recipientId: donorRecipient._id,
+            recipientEmail: donorRecipient.email,
+            type: 'GENERAL',
+            severity: 'info',
+            title: `Blood Dispensation: ${requestedUnits} Unit(s) of ${cleanGroup}`,
+            message: `Hospital ${hospitalName} has issued ${requestedUnits} bag(s) of ${cleanGroup} (${normalizedBagSize}) for patient ${patientName.trim()} (Ref: ${issueReference}).`,
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.warn('Optional patient notification skipped:', notifErr.message);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `Successfully dispensed ${requestedUnits} bag(s) of ${cleanGroup} (${normalizedBagSize}) to ${patientName.trim()}. Inventory stock reduced.`,
+      issue: newIssue,
+      updatedStock: {
+        bloodGroup: cleanGroup,
+        units: stockItem.units,
+        units350: stockItem.units350,
+        units450: stockItem.units450,
+        units500: stockItem.units500,
+      },
+    });
+  } catch (error) {
+    console.error('Issue Blood to Patient Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error while issuing blood.',
+    });
+  }
+};
+
+// @desc    Get blood issue history for hospital
+// @route   GET /api/hospital/blood-issues
+// @access  Hospital Staff
+export const getBloodIssueHistory = async (req, res) => {
+  try {
+    const { hospitalName } = await resolveHospitalInfo(req);
+    const filter = hospitalName ? { hospitalName } : {};
+
+    const issues = await BloodIssue.find(filter)
+      .sort({ issueDate: -1 })
+      .limit(100);
+
+    return res.status(200).json({
+      success: true,
+      count: issues.length,
+      issues,
+    });
+  } catch (error) {
+    console.error('Get Blood Issue History Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error retrieving blood dispensation history.',
+    });
+  }
+};
+

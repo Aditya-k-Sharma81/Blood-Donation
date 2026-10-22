@@ -26,6 +26,12 @@ import {
   Navigation,
   LocateFixed,
   Users,
+  HeartPulse,
+  ClipboardList,
+  Printer,
+  FileText,
+  UserPlus,
+  Receipt,
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -66,6 +72,8 @@ export default function HospitalPage({ user, onLogout }) {
   const [editUnits500, setEditUnits500] = useState(0);
   const [editReason, setEditReason] = useState('Donation Intake');
   const [savingEdit, setSavingEdit] = useState(false);
+
+
 
   // Fetch stocks from backend API
   const fetchStockData = async (silent = false) => {
@@ -261,7 +269,7 @@ export default function HospitalPage({ user, onLogout }) {
   return (
     <div className="w-full max-w-6xl mx-auto my-6 px-4 space-y-6">
 
-      {/* Critical Shortage Warning Banner (If Any) */}
+          {/* Critical Shortage Warning Banner (If Any) */}
       {criticalGroups.length > 0 && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start justify-between gap-3 shadow-xs">
           <div className="flex items-start gap-3">
@@ -624,16 +632,17 @@ export default function HospitalPage({ user, onLogout }) {
                   </div>
                 </div>
 
-                {/* Bottom Action Controls: Edit Button */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
+                {/* Bottom Action Controls: Edit Units */}
+                <div className="pt-3 border-t border-slate-100">
                   <button
+                    type="button"
                     onClick={() => handleOpenEdit(item)}
                     disabled={isUpdating}
                     className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs"
                     title="Edit quantity directly"
                   >
                     <Edit3 size={13} className="text-slate-500" />
-                    <span>Edit Units</span>
+                    <span>Adjust Stock Quantity</span>
                   </button>
                 </div>
               </div>
@@ -757,11 +766,12 @@ export default function HospitalPage({ user, onLogout }) {
                       {/* Actions */}
                       <td className="px-5 py-4 text-right">
                         <button
+                          type="button"
                           onClick={() => handleOpenEdit(item)}
                           disabled={isUpdating}
                           className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer shadow-xs"
                         >
-                          Edit Units
+                          Adjust Units
                         </button>
                       </td>
                     </tr>
@@ -775,10 +785,10 @@ export default function HospitalPage({ user, onLogout }) {
 
       {/* Manual Quantity Adjustment Modal */}
       {editingItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-sm w-full p-6 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs overflow-y-auto p-2 sm:p-4 flex min-h-full items-center justify-center">
+          <div className="relative w-full max-w-sm my-auto bg-white border border-slate-200 rounded-2xl shadow-xl max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2.5">
                 <span className="w-8 h-8 rounded-lg bg-red-50 border border-red-200 text-red-700 font-black text-sm flex items-center justify-center">
                   {editingItem.bloodGroup}
@@ -791,25 +801,26 @@ export default function HospitalPage({ user, onLogout }) {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingItem(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X size={16} />
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveEdit} className="space-y-4">
+            <form onSubmit={handleSaveEdit} className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3.5 overscroll-contain">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-2">
                   Inventory Units by Bag Size
                 </label>
 
                 {/* 3 Size Inputs */}
-                <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="grid grid-cols-3 gap-2 mb-2.5">
                   {/* 350 mL */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center focus-within:border-blue-500 focus-within:bg-white transition-all">
-                    <label className="block text-[11px] font-bold text-blue-700 mb-1">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-center focus-within:border-blue-500 focus-within:bg-white transition-all">
+                    <label className="block text-[11px] font-bold text-blue-700 mb-0.5">
                       350 mL
                     </label>
                     <input
@@ -821,12 +832,12 @@ export default function HospitalPage({ user, onLogout }) {
                       className="w-full text-center font-extrabold text-sm text-slate-900 bg-transparent outline-none"
                       required
                     />
-                    <span className="block text-[9px] text-slate-400 mt-0.5">Standard</span>
+                    <span className="block text-[9px] text-slate-400">Standard</span>
                   </div>
 
                   {/* 450 mL */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center focus-within:border-purple-500 focus-within:bg-white transition-all">
-                    <label className="block text-[11px] font-bold text-purple-700 mb-1">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-center focus-within:border-purple-500 focus-within:bg-white transition-all">
+                    <label className="block text-[11px] font-bold text-purple-700 mb-0.5">
                       450 mL
                     </label>
                     <input
@@ -838,12 +849,12 @@ export default function HospitalPage({ user, onLogout }) {
                       className="w-full text-center font-extrabold text-sm text-slate-900 bg-transparent outline-none"
                       required
                     />
-                    <span className="block text-[9px] text-slate-400 mt-0.5">High Vol</span>
+                    <span className="block text-[9px] text-slate-400">High Vol</span>
                   </div>
 
                   {/* 500 mL */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center focus-within:border-emerald-500 focus-within:bg-white transition-all">
-                    <label className="block text-[11px] font-bold text-emerald-700 mb-1">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-center focus-within:border-emerald-500 focus-within:bg-white transition-all">
+                    <label className="block text-[11px] font-bold text-emerald-700 mb-0.5">
                       500 mL
                     </label>
                     <input
@@ -855,12 +866,12 @@ export default function HospitalPage({ user, onLogout }) {
                       className="w-full text-center font-extrabold text-sm text-slate-900 bg-transparent outline-none"
                       required
                     />
-                    <span className="block text-[9px] text-slate-400 mt-0.5">Max Bag</span>
+                    <span className="block text-[9px] text-slate-400">Max Bag</span>
                   </div>
                 </div>
 
                 {/* Total Bags Calculated Summary */}
-                <div className="p-2.5 bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                <div className="p-2 bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
                   <span className="font-semibold text-slate-600">Calculated Total Bags:</span>
                   <span className="font-extrabold text-slate-900 text-sm">
                     {(parseInt(editUnits350 || 0, 10) + parseInt(editUnits450 || 0, 10) + parseInt(editUnits500 || 0, 10))} Bags
@@ -872,13 +883,13 @@ export default function HospitalPage({ user, onLogout }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Reason for Adjustment
                 </label>
                 <select
                   value={editReason}
                   onChange={(e) => setEditReason(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl text-slate-800 text-xs px-3 py-2 outline-none font-medium"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl text-slate-800 text-xs px-2.5 py-1.5 outline-none font-medium cursor-pointer"
                 >
                   <option value="Donation Intake">Blood Donation Batch Collected</option>
                   <option value="Emergency Patient Transfusion">Emergency ICU Transfusion Dispatch</option>
@@ -893,16 +904,16 @@ export default function HospitalPage({ user, onLogout }) {
                 <button
                   type="button"
                   onClick={() => setEditingItem(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingEdit}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  <Save size={14} />
+                  <Save size={13} />
                   <span>{savingEdit ? 'Saving...' : 'Update Stock'}</span>
                 </button>
               </div>

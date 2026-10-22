@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Building2, LogOut, Droplets, Calendar, Layers, Radio } from 'lucide-react';
+import { Building2, LogOut, Droplets, Calendar, Layers, Radio, HeartPulse } from 'lucide-react';
 
 export default function HospitalNavbar({ user, onLogout }) {
   const hospitalName = user?.hospitalName || user?.name || 'City Central Hospital';
@@ -10,7 +10,8 @@ export default function HospitalNavbar({ user, onLogout }) {
   const isRadiusSearch =
     location.pathname.startsWith('/hospital/radius') ||
     location.pathname.startsWith('/hospital/emergency');
-  const isStock = location.pathname === '/hospital' && !isAppointments && !isRadiusSearch;
+  const isIssueBlood = location.pathname.startsWith('/hospital/issue');
+  const isStock = location.pathname === '/hospital' && !isAppointments && !isRadiusSearch && !isIssueBlood;
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-6 py-3 bg-white border-b border-slate-200 shadow-xs">
@@ -38,6 +39,19 @@ export default function HospitalNavbar({ user, onLogout }) {
             <Layers size={14} className={isStock ? 'text-red-600' : 'text-slate-400'} />
             <span className="hidden sm:inline">Blood Stock</span>
             <span className="sm:hidden">Stock</span>
+          </Link>
+
+          {/* Issue Blood Tab in Navbar */}
+          <Link
+            to="/hospital/issue-blood"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              isIssueBlood
+                ? 'bg-rose-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <HeartPulse size={14} className={isIssueBlood ? 'text-white' : 'text-rose-600'} />
+            <span>Issue Blood</span>
           </Link>
 
           <Link

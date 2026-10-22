@@ -10,6 +10,7 @@ import AdminPage from './pages/AdminPage';
 import HospitalPage from './pages/HospitalPage';
 import HospitalAppointmentsPage from './pages/HospitalAppointmentsPage';
 import HospitalRadiusSearchPage from './pages/HospitalRadiusSearchPage';
+import HospitalIssueBloodPage from './pages/HospitalIssueBloodPage';
 import HospitalSignUpPage from './pages/HospitalSignUpPage';
 import AdminProfilePage from './pages/AdminProfilePage';
 import StaffManagementPage from './pages/StaffManagementPage';
@@ -288,6 +289,34 @@ export default function App() {
               element={
                 loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
                   <HospitalAppointmentsPage user={loggedInUser} onLogout={handleLogout} />
+                ) : (
+                  <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
+                    <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  </div>
+                )
+              }
+            />
+
+            {/* /hospital/issue-blood and /hospital/issue -> Hospital Blood Dispensation & Issued Blood History */}
+            <Route
+              path="/hospital/issue-blood"
+              element={
+                loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
+                  <div className="flex-1 flex justify-center p-6 md:p-10 w-full">
+                    <HospitalIssueBloodPage user={loggedInUser} onLogout={handleLogout} />
+                  </div>
+                ) : (
+                  <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
+                    <HospitalLogin onLoginSuccess={handleLoginSuccess} />
+                  </div>
+                )
+              }
+            />
+            <Route
+              path="/hospital/issue"
+              element={
+                loggedInUser && (loggedInUser.role === 'HOSPITAL' || loggedInUser.role === 'ADMIN') ? (
+                  <Navigate to="/hospital/issue-blood" replace />
                 ) : (
                   <div className="flex-1 flex justify-center items-center p-6 md:p-10 w-full">
                     <HospitalLogin onLoginSuccess={handleLoginSuccess} />
