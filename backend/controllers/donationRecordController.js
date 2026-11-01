@@ -107,7 +107,7 @@ export const recordDonation = async (req, res) => {
 
     // 2. Mark Appointment as 'Completed'
     appointment.status = 'Completed';
-    appointment.notes = (appointment.notes ? appointment.notes + ' | ' : '') + `Donation recorded: ${bloodAmountMl} mL by ${effectiveDoctorName}`;
+    appointment.notes = (appointment.notes ? appointment.notes + ' | ' : '') + `Prescription recorded: ${bloodAmountMl} mL by ${effectiveDoctorName}`;
     await appointment.save();
 
     // 3. Update Hospital Blood Stock Inventory with verified blood group and volume breakdown
@@ -197,10 +197,10 @@ export const recordDonation = async (req, res) => {
       await Notification.create({
         recipientId: appointment.donorId,
         recipientEmail: appointment.donorEmail,
-        type: 'DONATION_COMPLETED',
+        type: 'APPOINTMENT_CONFIRMED',
         severity: 'success',
-        title: '❤️ Blood Donation Completed & Medical Record Verified',
-        message: `Thank you for donating ${bloodAmountMl} mL of ${verifiedBloodGroup} blood at ${appointment.hospitalName}. Dr. ${effectiveDoctorName} has verified your clinical exam and completed your donation.`,
+        title: '❤️ Blood Donation Prescribed & Completed',
+        message: `Dr. ${effectiveDoctorName} at ${appointment.hospitalName} has completed your medical examination, verified your blood group (${verifiedBloodGroup}), and completed your blood donation intake.`,
         details: {
           appointmentId: appointment._id,
           bookingReference: appointment.bookingReference,

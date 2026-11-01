@@ -54,7 +54,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
   );
 
   // Filters & Search
-  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'TODAY' | 'Scheduled' | 'Confirmed' | 'Completed' | 'Cancelled'
+  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'TODAY' | 'Scheduled' | 'Completed'
   const [bloodGroupFilter, setBloodGroupFilter] = useState('ALL');
   const [selectedDate, setSelectedDate] = useState(''); // 'YYYY-MM-DD' date-wise filter
   const [dateSort, setDateSort] = useState('asc'); // 'asc' (Earliest first) | 'desc' (Latest first)
@@ -312,7 +312,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
   return (
     <div className="w-full max-w-6xl mx-auto my-6 px-4 space-y-6 relative">
       {/* Metric Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Active Appointments */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
           <div className="flex items-center justify-between">
@@ -367,25 +367,6 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
           <p className="text-[11px] text-blue-600 mt-0.5">Awaiting verification</p>
         </div>
 
-        {/* Confirmed */}
-        <div
-          onClick={() => setStatusFilter(statusFilter === 'Confirmed' ? 'ALL' : 'Confirmed')}
-          className={`p-4 rounded-2xl shadow-xs transition-all cursor-pointer border ${statusFilter === 'Confirmed'
-            ? 'bg-purple-100/70 border-purple-400 ring-2 ring-purple-300'
-            : 'bg-white border-purple-200/80 hover:border-purple-300'
-            }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-purple-700 uppercase tracking-wider">Confirmed</span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center">
-              <CheckSquare size={15} />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-purple-900 mt-2">
-            {metrics.confirmed} <span className="text-xs font-medium text-slate-500">Ready</span>
-          </p>
-          <p className="text-[11px] text-purple-600 mt-0.5">Slot approved</p>
-        </div>
 
         {/* Completed */}
         <div
@@ -474,16 +455,6 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
               <span>Scheduled ({metrics.scheduled})</span>
             </button>
 
-            <button
-              onClick={() => setStatusFilter('Confirmed')}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'Confirmed'
-                ? 'bg-purple-600 text-white shadow-xs font-bold'
-                : 'text-purple-700 hover:bg-purple-50'
-                }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-              <span>Confirmed ({metrics.confirmed})</span>
-            </button>
 
             <button
               onClick={() => setStatusFilter('Completed')}
@@ -736,28 +707,15 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
                     {/* Status Badge */}
                     <div>
-                      {appt.status === 'Scheduled' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
-                          <span>Scheduled</span>
-                        </span>
-                      )}
-                      {appt.status === 'Confirmed' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
-                          <span>Confirmed</span>
-                        </span>
-                      )}
-                      {appt.status === 'Completed' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {appt.status === 'Completed' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                           <span>Completed</span>
                         </span>
-                      )}
-                      {appt.status === 'Cancelled' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200 line-through">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                          <span>Cancelled</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
+                          <span>Scheduled</span>
                         </span>
                       )}
                     </div>
@@ -941,27 +899,15 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
                       {/* Status */}
                       <td className="px-5 py-3.5">
-                        {appt.status === 'Scheduled' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                            <span>Scheduled</span>
-                          </span>
-                        )}
-                        {appt.status === 'Confirmed' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
-                            <span>Confirmed</span>
-                          </span>
-                        )}
-                        {appt.status === 'Completed' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {appt.status === 'Completed' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                             <span>Completed</span>
                           </span>
-                        )}
-                        {appt.status === 'Cancelled' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200 line-through">
-                            <span>Cancelled</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                            <span>Scheduled</span>
                           </span>
                         )}
                       </td>
@@ -1071,28 +1017,15 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                     Booking Status
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    {selectedAppointment.status === 'Scheduled' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                        <Clock size={12} />
-                        <span>Scheduled (Awaiting Approval)</span>
-                      </span>
-                    )}
-                    {selectedAppointment.status === 'Confirmed' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                        <CheckSquare size={12} />
-                        <span>Confirmed (Slot Reserved)</span>
-                      </span>
-                    )}
-                    {selectedAppointment.status === 'Completed' && (
+                    {selectedAppointment.status === 'Completed' ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                         <CheckCircle2 size={12} />
-                        <span>Donation Completed</span>
+                        <span>Completed (Blood Donated)</span>
                       </span>
-                    )}
-                    {selectedAppointment.status === 'Cancelled' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700 border border-slate-300">
-                        <XCircle size={12} />
-                        <span>Cancelled</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                        <Clock size={12} />
+                        <span>Scheduled (Awaiting Examination)</span>
                       </span>
                     )}
                   </div>
@@ -1282,7 +1215,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                 <p className="text-xs text-rose-900 leading-relaxed">
                   {selectedAppointment.status === 'Completed'
                     ? 'Clinical exam vitals, blood collected (mL), and laboratory blood group cross-match recorded.'
-                    : 'Record collected blood volume (mL), cross-check donor blood group for discrepancies, check vitals, and complete appointment.'}
+                    : 'Record collected blood volume (mL), cross-check donor blood group, prescribe vitals, and complete appointment.'}
                 </p>
                 <button
                   type="button"
@@ -1292,63 +1225,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                   <Stethoscope size={14} />
                   <span>
                     {selectedAppointment.status === 'Completed'
-                      ? 'View / Edit Clinical Examination Record'
-                      : 'Open Blood Collection & Medical Exam Form'}
+                      ? 'View / Edit Doctor Prescription & Record'
+                      : 'Doctor Prescription & Clinical Intake Form'}
                   </span>
                 </button>
-              </div>
-
-              {/* 4. Staff Status Controls (Interactive Status Transitions) */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                  Hospital Staff Actions
-                </span>
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {/* Confirm Button */}
-                  <button
-                    onClick={() => handleUpdateStatus(selectedAppointment._id, 'Confirmed')}
-                    disabled={updatingStatusId === selectedAppointment._id || selectedAppointment.status === 'Confirmed'}
-                    className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${selectedAppointment.status === 'Confirmed'
-                      ? 'bg-purple-100 text-purple-800 border border-purple-200 opacity-60 cursor-not-allowed'
-                      : 'bg-purple-600 hover:bg-purple-700 text-white'
-                      }`}
-                  >
-                    <CheckSquare size={13} />
-                    <span>Confirm Slot</span>
-                  </button>
-
-                  {/* Mark Completed Button */}
-                  <button
-                    onClick={() => handleUpdateStatus(selectedAppointment._id, 'Completed')}
-                    disabled={updatingStatusId === selectedAppointment._id || selectedAppointment.status === 'Completed'}
-                    className={`py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${selectedAppointment.status === 'Completed'
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 opacity-60 cursor-not-allowed'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      }`}
-                  >
-                    <CheckCircle2 size={13} />
-                    <span>Mark Completed</span>
-                  </button>
-
-                  {/* Revert to Scheduled */}
-                  <button
-                    onClick={() => handleUpdateStatus(selectedAppointment._id, 'Scheduled')}
-                    disabled={updatingStatusId === selectedAppointment._id || selectedAppointment.status === 'Scheduled'}
-                    className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold transition-all cursor-pointer shadow-2xs"
-                  >
-                    Set as Scheduled
-                  </button>
-
-                  {/* Cancel Appointment Button */}
-                  <button
-                    onClick={() => handlePromptCancel(selectedAppointment)}
-                    disabled={updatingStatusId === selectedAppointment._id || selectedAppointment.status === 'Cancelled'}
-                    className="py-2 px-3 bg-white hover:bg-rose-50 text-rose-700 border border-slate-200 hover:border-rose-300 rounded-xl font-semibold transition-all cursor-pointer shadow-2xs"
-                  >
-                    Cancel Booking
-                  </button>
-                </div>
               </div>
 
               {/* Timestamp Information */}
@@ -1394,6 +1274,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
           if (selectedAppointment && selectedAppointment._id === updatedAppt._id) {
             setSelectedAppointment(updatedAppt);
           }
+          fetchAppointments(true);
         }}
       />
     </div>

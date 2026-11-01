@@ -150,12 +150,10 @@ export default function MyBookingsPage({ user }) {
   const filteredAppointments = useMemo(() => {
     if (filterStatus === 'ALL') return appointments;
     if (filterStatus === 'UPCOMING') {
-      return appointments.filter(
-        (a) => a.status === 'Scheduled' || a.status === 'Confirmed'
-      );
+      return appointments.filter((a) => a.status === 'Scheduled');
     }
     if (filterStatus === 'COMPLETED') {
-      return appointments.filter((a) => a.status === 'Completed');
+      return appointments.filter((a) => a.status === 'Completed' || a.status === 'Confirmed');
     }
     if (filterStatus === 'CANCELLED') {
       return appointments.filter((a) => a.status === 'Cancelled');
@@ -165,10 +163,8 @@ export default function MyBookingsPage({ user }) {
 
   // Quick statistics
   const counts = useMemo(() => {
-    const upcoming = appointments.filter(
-      (a) => a.status === 'Scheduled' || a.status === 'Confirmed'
-    ).length;
-    const completed = appointments.filter((a) => a.status === 'Completed').length;
+    const upcoming = appointments.filter((a) => a.status === 'Scheduled').length;
+    const completed = appointments.filter((a) => a.status === 'Completed' || a.status === 'Confirmed').length;
     const cancelled = appointments.filter((a) => a.status === 'Cancelled').length;
     return {
       all: appointments.length,
@@ -463,8 +459,7 @@ export default function MyBookingsPage({ user }) {
       ) : (
         <div className="space-y-4">
           {filteredAppointments.map((appt) => {
-            const isUpcoming =
-              appt.status === 'Scheduled' || appt.status === 'Confirmed';
+            const isUpcoming = appt.status === 'Scheduled';
             const apptDateObj = new Date(appt.appointmentDate);
             const formattedDate = !isNaN(apptDateObj.getTime())
               ? apptDateObj.toLocaleDateString('en-US', {
@@ -661,7 +656,7 @@ export default function MyBookingsPage({ user }) {
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
-                    {appt.status === 'Completed' && (
+                    {(appt.status === 'Confirmed' || appt.status === 'Completed') && (
                       <button
                         onClick={() => handleViewMedicalReport(appt._id)}
                         className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"

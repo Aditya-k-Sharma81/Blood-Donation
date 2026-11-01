@@ -491,8 +491,8 @@ export const cancelAppointment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Appointment not found for your donor account.' });
     }
 
-    if (appointment.status === 'Completed') {
-      return res.status(400).json({ success: false, message: 'Completed appointments cannot be cancelled.' });
+    if (appointment.status === 'Confirmed' || appointment.status === 'Completed') {
+      return res.status(400).json({ success: false, message: 'This appointment has already been confirmed/completed by medical staff (blood donated) and cannot be cancelled.' });
     }
 
     appointment.status = 'Cancelled';
@@ -611,7 +611,7 @@ export const getAllAppointments = async (req, res) => {
     const metrics = {
       total: activeAppointments.length,
       scheduled: scopedAppointments.filter((a) => a.status === 'Scheduled').length,
-      confirmed: scopedAppointments.filter((a) => a.status === 'Confirmed').length,
+      confirmed: scopedAppointments.filter((a) => a.status === 'Confirmed' || a.status === 'Completed').length,
       completed: scopedAppointments.filter((a) => a.status === 'Completed').length,
       cancelled: scopedAppointments.filter((a) => a.status === 'Cancelled').length,
       todayCount: activeAppointments.filter((a) => {

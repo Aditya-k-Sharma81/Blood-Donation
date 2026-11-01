@@ -235,7 +235,7 @@ export default function ClinicalIntakeModal({
         if (!payload.isBloodGroupMatched) {
           Swal.fire({
             icon: 'warning',
-            title: 'Medical Record Saved & Alert Dispatched!',
+            title: 'Medical Record Saved & Appointment Completed!',
             html: `
               <div class="text-left text-xs space-y-2 mt-2">
                 <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900">
@@ -252,7 +252,8 @@ export default function ClinicalIntakeModal({
                   A high-priority notification with your medical notes has been dispatched to <strong>${appointment.donorName}</strong> (${appointment.donorEmail}).
                 </p>
                 <p class="text-emerald-700 font-semibold">
-                  ✓ Collected ${payload.bloodAmountMl} mL blood credited to hospital inventory.
+                  ✓ Collected ${payload.bloodAmountMl} mL blood credited to hospital inventory.<br/>
+                  ✓ Appointment successfully Completed.
                 </p>
               </div>
             `,
@@ -261,14 +262,14 @@ export default function ClinicalIntakeModal({
         } else {
           Swal.fire({
             icon: 'success',
-            title: 'Donation Completed Successfully!',
+            title: 'Prescription Saved & Appointment Completed!',
             html: `
               <div class="text-left text-xs space-y-2 mt-2">
                 <p><strong>Donor:</strong> ${appointment.donorName}</p>
                 <p><strong>Blood Collected:</strong> ${payload.bloodAmountMl} mL (${payload.verifiedBloodGroup})</p>
                 <p><strong>Vitals:</strong> Hb ${payload.hemoglobin} g/dL | BP ${payload.bloodPressure} | Pulse ${payload.pulseRate} bpm</p>
                 <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[11px] font-medium">
-                  ✓ Saved to separate <code>donation_records</code> collection.<br/>
+                  ✓ Saved to <code>donation_records</code> collection.<br/>
                   ✓ Appointment marked as Completed.<br/>
                   ✓ Digital confirmation receipt sent to donor.
                 </div>
@@ -928,7 +929,7 @@ export default function ClinicalIntakeModal({
               ) : (
                 <>
                   <Save size={14} />
-                  <span>Submit Donation Record & Complete Appointment</span>
+                  <span>Submit Prescription & Confirm Appointment</span>
                 </>
               )}
             </button>
