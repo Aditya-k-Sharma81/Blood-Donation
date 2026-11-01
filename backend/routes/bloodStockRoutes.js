@@ -13,8 +13,13 @@ import {
   collectEmergencyBlood,
   getEmergencyDonationReceipt,
 } from '../controllers/bloodStockController.js';
+import { getAdminBloodStock } from '../controllers/adminBloodStockController.js';
 
 const router = express.Router();
+
+// Admin Blood Stock Oversight Routes (Dedicated Read-Only Controller)
+router.get('/admin/stock', getAdminBloodStock);
+router.get('/admin/blood-stock', getAdminBloodStock);
 
 // Blood Inventory Routes
 router.get('/hospital/stock', getHospitalStock);

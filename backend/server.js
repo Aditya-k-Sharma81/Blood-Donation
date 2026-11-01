@@ -23,6 +23,7 @@ app.use('/api', appointmentRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', authRoutes);
 app.use('/', donationRecordRoutes);
+app.use('/', bloodStockRoutes);
 app.use('/', authRoutes);
 app.use('/', appointmentRoutes);
 
