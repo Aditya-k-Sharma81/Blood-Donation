@@ -56,10 +56,19 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
   // Filters & Search
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'TODAY' | 'Scheduled' | 'Confirmed' | 'Completed' | 'Cancelled'
   const [bloodGroupFilter, setBloodGroupFilter] = useState('ALL');
+  const [selectedDate, setSelectedDate] = useState(''); // 'YYYY-MM-DD' date-wise filter
+  const [dateSort, setDateSort] = useState('asc'); // 'asc' (Earliest first) | 'desc' (Latest first)
   const [scopeFilter, setScopeFilter] = useState('all'); // 'hospital' (My Hospital Only) | 'all' (All Network Bookings)
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
+
+  const handleDateChange = (val) => {
+    setSelectedDate(val);
+    if (val && statusFilter === 'TODAY') {
+      setStatusFilter('ALL');
+    }
+  };
 
   // Detailed Modal / Slide-over (Navbar is NEVER hidden)
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -235,7 +244,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
   // Filtered appointments computation (Exclude Cancelled appointments as requested)
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((item) => {
+    const list = appointments.filter((item) => {
       // STRICT FILTER: Jiska status cancelled hai woh /hospital me show NA ho
       if (item.status === 'Cancelled') {
         return false;
@@ -252,6 +261,21 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
         if (!isSameDay) return false;
       } else if (statusFilter !== 'ALL' && item.status !== statusFilter) {
         return false;
+      }
+
+      // Date-wise filter (Specific Date Selected)
+      if (selectedDate) {
+        const itemDate = new Date(item.appointmentDate);
+        const [y, m, d] = selectedDate.split('-').map(Number);
+        const localMatch =
+          itemDate.getFullYear() === y &&
+          itemDate.getMonth() === m - 1 &&
+          itemDate.getDate() === d;
+        const utcMatch =
+          itemDate.getUTCFullYear() === y &&
+          itemDate.getUTCMonth() === m - 1 &&
+          itemDate.getUTCDate() === d;
+        if (!localMatch && !utcMatch) return false;
       }
 
       // Blood Group filter
@@ -276,7 +300,14 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
 
       return true;
     });
-  }, [appointments, statusFilter, bloodGroupFilter, searchQuery]);
+
+    // Date-wise sorting (Earliest first or Latest first)
+    return list.sort((a, b) => {
+      const dateA = new Date(a.appointmentDate).getTime() || 0;
+      const dateB = new Date(b.appointmentDate).getTime() || 0;
+      return dateSort === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  }, [appointments, statusFilter, bloodGroupFilter, searchQuery, selectedDate, dateSort]);
 
   return (
     <div className="w-full max-w-6xl mx-auto my-6 px-4 space-y-6 relative">
@@ -406,8 +437,11 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
           {/* Status Filter Tabs (Only Non-Cancelled Appointments) */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
             <button
-              onClick={() => setStatusFilter('ALL')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'ALL'
+              onClick={() => {
+                setStatusFilter('ALL');
+                setSelectedDate('');
+              }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'ALL' && !selectedDate
                 ? 'bg-slate-900 text-white shadow-xs font-bold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
@@ -416,7 +450,10 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
             </button>
 
             <button
-              onClick={() => setStatusFilter('TODAY')}
+              onClick={() => {
+                setStatusFilter('TODAY');
+                setSelectedDate('');
+              }}
               className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap ${statusFilter === 'TODAY'
                 ? 'bg-amber-600 text-white shadow-xs font-bold'
                 : 'text-amber-800 hover:bg-amber-50'
@@ -485,11 +522,11 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
           </div>
         </div>
 
-        {/* Second Row: Search, Blood Group Dropdown, View Mode */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
-          <div className="flex items-center gap-2.5 flex-1">
+        {/* Second Row: Search, Blood Group Dropdown, Date Picker, Date Sort, View Mode */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
+          <div className="flex items-center gap-2.5 flex-1 flex-wrap">
             {/* Search Input */}
-            <div className="relative flex items-center flex-1 max-w-md">
+            <div className="relative flex items-center flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 w-4 h-4 text-slate-400" />
               <input
                 type="text"
@@ -512,7 +549,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
             <select
               value={bloodGroupFilter}
               onChange={(e) => setBloodGroupFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl font-semibold text-slate-700 outline-none focus:border-slate-400 transition-all cursor-pointer"
+              className="bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl font-semibold text-slate-700 outline-none focus:border-slate-400 transition-all cursor-pointer shrink-0"
             >
               <option value="ALL">All Blood Groups</option>
               {BLOOD_GROUPS.map((bg) => (
@@ -521,9 +558,53 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
                 </option>
               ))}
             </select>
+
+            {/* Date-Wise Filter Picker */}
+            <div className="relative flex items-center shrink-0">
+              <Calendar
+                size={13}
+                className={`absolute left-3 pointer-events-none transition-colors ${
+                  selectedDate ? 'text-red-600' : 'text-slate-400'
+                }`}
+              />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className={`text-xs pl-8 pr-7 py-2 rounded-xl font-semibold outline-none transition-all cursor-pointer ${
+                  selectedDate
+                    ? 'bg-red-50 text-red-700 border border-red-300 ring-2 ring-red-500/10'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 focus:border-slate-400'
+                }`}
+                title="Filter appointments date-wise"
+              />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('')}
+                  className="absolute right-2 text-slate-400 hover:text-red-600 text-xs font-bold p-0.5 cursor-pointer"
+                  title="Clear date filter"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Date-Wise Sort */}
+            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 shrink-0" title="Sort appointments by date">
+              <Clock size={12} className="text-slate-400 mr-1.5" />
+              <select
+                value={dateSort}
+                onChange={(e) => setDateSort(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+              >
+                <option value="asc">Date: Earliest First</option>
+                <option value="desc">Date: Latest First</option>
+              </select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+          <div className="flex items-center gap-2 self-end lg:self-auto shrink-0">
             {/* View Mode Toggle: Grid vs Table */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
               <button
@@ -559,6 +640,36 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
             </button>
           </div>
         </div>
+
+        {/* Active Date-Wise Filter Indicator */}
+        {selectedDate && (
+          <div className="flex items-center justify-between gap-3 px-3.5 py-2 bg-red-50/80 border border-red-200 rounded-xl text-xs text-red-900 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2 font-medium flex-wrap">
+              <Calendar size={13} className="text-red-600 shrink-0" />
+              <span>
+                Filtered by Date:{' '}
+                <strong className="font-bold underline">
+                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </strong>
+              </span>
+              <span className="text-[11px] px-2 py-0.5 bg-red-100 text-red-700 font-bold rounded-md">
+                {filteredAppointments.length} Appointment{filteredAppointments.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedDate('')}
+              className="text-xs font-bold text-red-700 hover:text-red-900 underline cursor-pointer shrink-0"
+            >
+              Show All Dates
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Appointments Display */}
@@ -582,6 +693,7 @@ export default function HospitalAppointmentsPage({ user, onLogout }) {
               setStatusFilter('ALL');
               setBloodGroupFilter('ALL');
               setSearchQuery('');
+              setSelectedDate('');
               setScopeFilter('all');
             }}
             className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 rounded-xl transition-all cursor-pointer"
